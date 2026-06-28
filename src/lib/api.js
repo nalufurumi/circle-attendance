@@ -19,6 +19,7 @@ function migrate(raw) {
       attendance: ev.attendance || {},
     })) : [],
     circleName:  raw.circleName  || '',
+    accentColor: raw.accentColor || 'rose',
     dataVersion: CURRENT_DATA_VERSION,
   }
 }

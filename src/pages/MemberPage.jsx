@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { loadData, saveData, mkLog } from '../lib/api.js'
-import { STATUS_ORDER, STATUS, getColor, PK, PKB, PKD, nowStr, DEFAULT_DATA } from '../lib/constants.js'
+import { STATUS_ORDER, STATUS, getColor, applyAccent, DEFAULT_DATA } from '../lib/constants.js'
+
+const AC  = 'var(--accent)'
+const ACB = 'var(--accent-bg)'
+const ACD = 'var(--accent-dark)'
 
 const Avatar = ({ name, size = 32 }) => (
-  <div style={{ width: size, height: size, borderRadius: '50%', background: PKB, color: PKD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.4, flexShrink: 0 }}>
+  <div style={{ width: size, height: size, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.4, flexShrink: 0 }}>
     {name.slice(0, 1)}
   </div>
 )
 
 const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', ...style }}>
+  <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', ...style }}>
     {children}
   </div>
 )
@@ -32,7 +36,7 @@ export default function MemberPage() {
     if (!url.startsWith('http')) { setError('URLが無効です。'); setLoading(false); return }
     setScriptUrl(url)
     loadData(url)
-      .then(d => setData({ ...DEFAULT_DATA, ...d }))
+      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); if (m.accentColor) applyAccent(m.accentColor) })
       .catch(() => setError('データの取得に失敗しました。URLを確認してください。'))
       .finally(() => setLoading(false))
   }, [params])
@@ -94,9 +98,9 @@ export default function MemberPage() {
   return (
     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', paddingBottom: '2rem' }}>
       {/* Header */}
-      <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <span style={{ color: PK, marginRight: 6 }}>✧</span>
+          <span style={{ color: AC, marginRight: 6 }}>✧</span>
           <span style={{ fontWeight: 500, fontSize: 15 }}>{data.circleName || '出席管理'}</span>
         </div>
         {selMember && (
@@ -120,7 +124,7 @@ export default function MemberPage() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {data.members.map(m => (
-                  <button key={m} onClick={() => setSelMember(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer', textAlign: 'left' }}>
+                  <button key={m} onClick={() => setSelMember(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', cursor: 'pointer', textAlign: 'left' }}>
                     <Avatar name={m} size={36} />
                     <span style={{ fontWeight: 500, fontSize: 13 }}>{m}</span>
                   </button>

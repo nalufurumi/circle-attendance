@@ -2,9 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { loadData, saveData, getLogs, mkLog } from '../lib/api.js'
 import {
   CLIENT_ID, COLORS, getColor, STATUS_ORDER, STATUS, DOT,
-  EVENT_TYPES, PK, PKB, PKD, PU, PUB, PUD, GR, GRB, GRD,
+  EVENT_TYPES, ACCENT_PRESETS, applyAccent, GR, GRB, GRD,
   todayStr, DEFAULT_DATA, APPS_SCRIPT,
 } from '../lib/constants.js'
+
+// CSS variable shortcuts — resolved dynamically via applyAccent()
+const AC  = 'var(--accent)'
+const ACB = 'var(--accent-bg)'
+const ACD = 'var(--accent-dark)'
 
 // ── Helpers ───────────────────────────────────────────────────
 function parseJwt(token) {
@@ -28,12 +33,12 @@ function getDisplayName(user) {
 const Avatar = ({ name, size = 32, src }) => (
   src
     ? <img src={src} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-    : <div style={{ width: size, height: size, borderRadius: '50%', background: PKB, color: PKD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.4, flexShrink: 0 }}>{name.slice(0, 1)}</div>
+    : <div style={{ width: size, height: size, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.4, flexShrink: 0 }}>{name.slice(0, 1)}</div>
 )
 const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', ...style }}>{children}</div>
+  <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', ...style }}>{children}</div>
 )
-const PrimaryBtn = ({ children, onClick, color = PK, style = {} }) => (
+const PrimaryBtn = ({ children, onClick, color = AC, style = {} }) => (
   <button onClick={onClick} style={{ padding: '8px', background: color, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, ...style }}>{children}</button>
 )
 const GhostBtn = ({ children, onClick, style = {} }) => (
@@ -184,7 +189,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
 
   useEffect(() => {
     loadData(scriptUrl)
-      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || '') })
+      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || ''); if (m.accentColor) applyAccent(m.accentColor) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [scriptUrl])
@@ -288,8 +293,8 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   return (
     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', paddingBottom: '2rem' }}>
       {/* Header */}
-      <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ color: PK }}>✧</span>
+      <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ color: AC }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName || '出席管理'}</span>
         <SaveDot />
         <Avatar name={getDisplayName(user)} src={user.picture} size={28} />
@@ -300,7 +305,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
       </div>
 
       {/* Tab bar */}
-      <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', position: 'sticky', top: 48, zIndex: 9 }}>
+      <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', position: 'sticky', top: 48, zIndex: 9 }}>
         <div style={{ display: 'flex' }}>
           {[
             { id: 'events',  icon: 'ti-calendar',   label: 'イベント' },
@@ -309,7 +314,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             { id: 'log',     icon: 'ti-history',     label: 'ログ' },
             { id: 'settings',icon: 'ti-settings',    label: '設定' },
           ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0 10px', border: 'none', borderBottom: tab === t.id ? `2px solid ${PU}` : '2px solid transparent', background: 'transparent', color: tab === t.id ? PU : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 10, fontWeight: tab === t.id ? 500 : 400 }}>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0 10px', border: 'none', borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent', background: 'transparent', color: tab === t.id ? AC : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 10, fontWeight: tab === t.id ? 500 : 400 }}>
               <i className={`ti ${t.icon}`} style={{ fontSize: 17 }}></i>{t.label}
             </button>
           ))}
@@ -323,7 +328,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontWeight: 500 }}>イベント管理</span>
-              <button onClick={() => setShowAddEv(!showAddEv)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: PKB, border: 'none', color: PKD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              <button onClick={() => setShowAddEv(!showAddEv)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
                 <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
               </button>
             </div>
@@ -389,7 +394,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       {data.members.length === 0 ? <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', fontSize: 13 }}>メンバーを先に登録してください</p> : (
                         <>
                           <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 10 }}>
-                            <i className="ti ti-shield" style={{ fontSize: 11, marginRight: 4, color: PU }}></i>
+                            <i className="ti ti-shield" style={{ fontSize: 11, marginRight: 4, color: AC }}></i>
                             管理者モード：全メンバーの出席を編集できます（変更ログに記録）
                           </p>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -424,7 +429,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontWeight: 500 }}>メンバー管理</span>
-              <button onClick={() => setShowAddMem(!showAddMem)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: PKB, border: 'none', color: PKD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+              <button onClick={() => setShowAddMem(!showAddMem)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
                 <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
               </button>
             </div>
@@ -441,7 +446,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               {data.members.map((m, i) => (
                 <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: PKB, color: PKD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{m.slice(0, 1)}</div>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{m.slice(0, 1)}</div>
                     <span style={{ fontWeight: 500 }}>{m}</span>
                   </div>
                   <div style={{ display: 'flex' }}>
@@ -465,7 +470,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontWeight: 500 }}>統計</span>
-              <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: PUB, border: 'none', color: PUD, cursor: 'pointer', fontSize: 12 }}>
+              <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 12 }}>
                 <i className="ti ti-download" style={{ fontSize: 13 }}></i>CSV
               </button>
             </div>
@@ -478,7 +483,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', width: 20 }}>#{rank + 1}</span>
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: PKB, color: PKD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{s.member.slice(0, 1)}</div>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{s.member.slice(0, 1)}</div>
                       <span style={{ fontWeight: 500 }}>{s.member}</span>
                     </div>
                     <span style={{ fontSize: 22, fontWeight: 500, color: rc }}>{s.rate == null ? '－' : `${s.rate}%`}</span>
@@ -514,7 +519,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontWeight: 500 }}>変更ログ</span>
-              <button onClick={loadLogs} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: PUB, border: 'none', color: PUD, cursor: 'pointer', fontSize: 12 }}>
+              <button onClick={loadLogs} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 12 }}>
                 <i className="ti ti-refresh" style={{ fontSize: 13 }}></i>更新
               </button>
             </div>
@@ -533,7 +538,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: log.type === 'admin' ? PUB : PKB, color: log.type === 'admin' ? PUD : PKD, fontWeight: 500, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: log.type === 'admin' ? ACB : ACB, color: log.type === 'admin' ? ACD : ACD, fontWeight: 500, flexShrink: 0 }}>
                           {log.type === 'admin' ? '管理者' : 'メンバー'}
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.by}</span>
@@ -566,7 +571,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             {/* Display name */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
-                <i className="ti ti-user-circle" style={{ fontSize: 18, color: PU, marginTop: 2 }}></i>
+                <i className="ti ti-user-circle" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
                 <div>
                   <p style={{ fontWeight: 500, margin: 0 }}>管理者表示名（任意）</p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>変更ログやヘッダーに表示される名前。未入力の場合はGoogleアカウント名を使用。</p>
@@ -580,15 +585,49 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   onUpdateUser(newUser)
                   setSettingsMsg('✓ 表示名を保存しました')
                   setTimeout(() => setSettingsMsg(''), 2500)
-                }} style={{ padding: '0 14px', background: PU, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>保存</button>
+                }} style={{ padding: '0 14px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>保存</button>
               </div>
               {settingsMsg && <p style={{ fontSize: 12, color: 'var(--color-text-success)', marginTop: 6 }}>{settingsMsg}</p>}
+            </Card>
+
+            {/* Accent color picker */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 14 }}>
+                <i className="ti ti-palette" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>テーマカラー</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>選択したカラーはメンバーページにも反映されます</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {ACCENT_PRESETS.map(preset => {
+                  const isActive = (data.accentColor || 'rose') === preset.id
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => {
+                        applyAccent(preset)
+                        const nd = { ...data, accentColor: preset.id }
+                        update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.accentColor || 'rose', after: `テーマカラー変更: ${preset.label}` }))
+                      }}
+                      title={preset.label}
+                      style={{
+                        width: 38, height: 38, borderRadius: '50%',
+                        background: preset.main, border: 'none', cursor: 'pointer',
+                        outline: isActive ? `3px solid ${preset.main}` : 'none',
+                        outlineOffset: 3, transition: 'transform 0.1s, outline 0.1s',
+                        transform: isActive ? 'scale(1.12)' : 'scale(1)',
+                      }}
+                    />
+                  )
+                })}
+              </div>
             </Card>
 
             {/* Circle name */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
-                <i className="ti ti-sparkles" style={{ fontSize: 18, color: PK, marginTop: 2 }}></i>
+                <i className="ti ti-sparkles" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
                 <p style={{ fontWeight: 500, margin: 0 }}>サークル名</p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -601,7 +640,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             {/* Share URL */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
-                <i className="ti ti-share" style={{ fontSize: 18, color: PK, marginTop: 2 }}></i>
+                <i className="ti ti-share" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
                 <div>
                   <p style={{ fontWeight: 500, margin: 0 }}>メンバー用共有URL</p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>このURLをLINEなどでメンバーに送ってください。ログイン不要で出席入力できます。</p>
@@ -610,7 +649,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               <div style={{ background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-md)', padding: '8px 10px', fontSize: 12, wordBreak: 'break-all', marginBottom: 8 }}>
                 {shareUrl}
               </div>
-              <button onClick={() => { navigator.clipboard.writeText(shareUrl); setCopied('url'); setTimeout(() => setCopied(''), 2000) }} style={{ width: '100%', padding: '7px', background: PKB, border: 'none', borderRadius: 'var(--border-radius-md)', color: PKD, cursor: 'pointer', fontWeight: 500, fontSize: 13 }}>
+              <button onClick={() => { navigator.clipboard.writeText(shareUrl); setCopied('url'); setTimeout(() => setCopied(''), 2000) }} style={{ width: '100%', padding: '7px', background: ACB, border: 'none', borderRadius: 'var(--border-radius-md)', color: ACD, cursor: 'pointer', fontWeight: 500, fontSize: 13 }}>
                 {copied === 'url' ? '✓ コピーしました' : 'URLをコピー'}
               </button>
             </Card>

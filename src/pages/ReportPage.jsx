@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { PK, PKB, PKD, PU, PUB, PUD, GR, GRB } from '../lib/constants.js'
+// accent colors come from CSS variables set by applyAccent()
+const AC  = 'var(--accent)'
+const ACB = 'var(--accent-bg)'
+const ACD = 'var(--accent-dark)'
 
 const APP_VER     = '2.1.0'
 const CONTACT     = 'nalufurumi@gmail.com'
@@ -12,7 +15,7 @@ const TYPES = [
 ]
 
 const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-lg)', ...style }}>
+  <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', ...style }}>
     {children}
   </div>
 )
@@ -60,11 +63,11 @@ export default function ReportPage() {
   return (
     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', paddingBottom: '2rem', background: 'var(--color-background-tertiary)', minHeight: '100vh' }}>
       {/* Header */}
-      <div style={{ background: 'var(--color-background-primary)', borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
         <a href="/admin" style={{ color: 'var(--color-text-secondary)', textDecoration: 'none', fontSize: 13 }}>
           <i className="ti ti-arrow-left" style={{ fontSize: 16 }}></i>
         </a>
-        <span style={{ color: PK }}>✧</span>
+        <span style={{ color: AC }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15 }}>バグ報告・お問い合わせ</span>
       </div>
 
@@ -78,7 +81,7 @@ export default function ReportPage() {
               ご報告ありがとうございます。<br />
               開発者がメールで確認し、対応します。
             </p>
-            <button onClick={() => { setStatus('idle'); setMessage(''); setSteps(''); setEmail('') }} style={{ padding: '8px 24px', background: PKB, border: 'none', borderRadius: 999, color: PKD, cursor: 'pointer', fontWeight: 500 }}>
+            <button onClick={() => { setStatus('idle'); setMessage(''); setSteps(''); setEmail('') }} style={{ padding: '8px 24px', background: ACB, border: 'none', borderRadius: 999, color: ACD, cursor: 'pointer', fontWeight: 500 }}>
               もう1件送る
             </button>
           </Card>
@@ -89,13 +92,13 @@ export default function ReportPage() {
               <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 8 }}>種別を選んでください</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {TYPES.map(t => (
-                  <button key={t.id} onClick={() => setType(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: type === t.id ? PKB : 'var(--color-background-primary)', border: `0.5px solid ${type === t.id ? PK : 'var(--color-border-tertiary)'}`, borderRadius: 'var(--border-radius-md)', cursor: 'pointer', textAlign: 'left' }}>
+                  <button key={t.id} onClick={() => setType(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: type === t.id ? ACB : 'var(--color-background-primary)', border: `0.5px solid ${type === t.id ? AC : 'var(--color-border-tertiary)'}`, borderRadius: 'var(--border-radius-md)', cursor: 'pointer', textAlign: 'left' }}>
                     <span style={{ fontSize: 18 }}>{t.label.split(' ')[0]}</span>
                     <div>
-                      <p style={{ fontWeight: 500, fontSize: 13, color: type === t.id ? PKD : 'var(--color-text-primary)', margin: 0 }}>{t.label.slice(2)}</p>
+                      <p style={{ fontWeight: 500, fontSize: 13, color: type === t.id ? ACD : 'var(--color-text-primary)', margin: 0 }}>{t.label.slice(2)}</p>
                       <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: 0 }}>{t.desc}</p>
                     </div>
-                    {type === t.id && <i className="ti ti-check" style={{ marginLeft: 'auto', color: PK, fontSize: 16 }}></i>}
+                    {type === t.id && <i className="ti ti-check" style={{ marginLeft: 'auto', color: AC, fontSize: 16 }}></i>}
                   </button>
                 ))}
               </div>
@@ -144,7 +147,7 @@ export default function ReportPage() {
               <button
                 onClick={submit}
                 disabled={!message.trim() || status === 'sending'}
-                style={{ width: '100%', padding: '10px', background: message.trim() ? PK : 'var(--color-background-secondary)', border: 'none', borderRadius: 'var(--border-radius-md)', color: message.trim() ? '#fff' : 'var(--color-text-tertiary)', cursor: message.trim() ? 'pointer' : 'default', fontWeight: 500, fontSize: 14, transition: 'background 0.2s' }}
+                style={{ width: '100%', padding: '10px', background: message.trim() ? AC : 'var(--color-background-secondary)', border: 'none', borderRadius: 'var(--border-radius-md)', color: message.trim() ? '#fff' : 'var(--color-text-tertiary)', cursor: message.trim() ? 'pointer' : 'default', fontWeight: 500, fontSize: 14, transition: 'background 0.2s' }}
               >
                 {status === 'sending' ? '送信中...' : '送信する'}
               </button>
@@ -153,10 +156,10 @@ export default function ReportPage() {
             {/* Contact info */}
             <Card style={{ padding: 14 }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <i className="ti ti-mail" style={{ fontSize: 18, color: PK, marginTop: 2, flexShrink: 0 }}></i>
+                <i className="ti ti-mail" style={{ fontSize: 18, color: AC, marginTop: 2, flexShrink: 0 }}></i>
                 <div>
                   <p style={{ fontWeight: 500, margin: 0, marginBottom: 4 }}>直接お問い合わせ</p>
-                  <a href={`mailto:${CONTACT}`} style={{ color: PK, fontSize: 13, textDecoration: 'none' }}>{CONTACT}</a>
+                  <a href={`mailto:${CONTACT}`} style={{ color: AC, fontSize: 13, textDecoration: 'none' }}>{CONTACT}</a>
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4, lineHeight: 1.6 }}>
                     フォームが使えない場合はメールで直接ご連絡ください。
                   </p>

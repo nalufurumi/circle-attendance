@@ -1,5 +1,28 @@
 export const CLIENT_ID = '921522318195-m08akd0tflopcb1r4h2lfh9ejar2fhot.apps.googleusercontent.com'
 
+// ── Accent color presets ──────────────────────────────────────
+export const ACCENT_PRESETS = [
+  { id: 'rose',    main: '#E8527A', bg: '#FEF0F4', dark: '#9E2047', label: 'ローズ' },
+  { id: 'violet',  main: '#7C5BDE', bg: '#F3F0FE', dark: '#4A2FAA', label: 'バイオレット' },
+  { id: 'blue',    main: '#3B8FE8', bg: '#EFF7FF', dark: '#1A5FA8', label: 'ブルー' },
+  { id: 'teal',    main: '#0F9B8E', bg: '#EDFAF8', dark: '#097068', label: 'ティール' },
+  { id: 'green',   main: '#2EB67D', bg: '#EDFAF4', dark: '#1A8055', label: 'グリーン' },
+  { id: 'orange',  main: '#F0793B', bg: '#FEF3EE', dark: '#B84C18', label: 'オレンジ' },
+  { id: 'amber',   main: '#D97706', bg: '#FFFBEB', dark: '#92400E', label: 'アンバー' },
+  { id: 'red',     main: '#E53935', bg: '#FEF2F2', dark: '#B71C1C', label: 'レッド' },
+]
+
+/** Apply accent preset to CSS variables (affects whole app instantly) */
+export function applyAccent(presetOrId) {
+  const preset = typeof presetOrId === 'string'
+    ? ACCENT_PRESETS.find(p => p.id === presetOrId) || ACCENT_PRESETS[0]
+    : presetOrId
+  const r = document.documentElement
+  r.style.setProperty('--accent',      preset.main)
+  r.style.setProperty('--accent-bg',   preset.bg)
+  r.style.setProperty('--accent-dark', preset.dark)
+}
+
 export const COLORS = [
   { id: 'pink',   hex: '#D4537E' },
   { id: 'red',    hex: '#E24B4A' },
@@ -22,14 +45,13 @@ export const STATUS = {
 export const DOT = { present: '#1D9E75', late: '#BA7517', absent: '#E24B4A', unknown: 'var(--color-border-secondary)' }
 export const EVENT_TYPES = ['練習', '本番', 'イベント', 'MTG', 'その他']
 
-export const PK = '#D4537E', PKB = '#FBEAF0', PKD = '#993556'
-export const PU = '#7F77DD', PUB = '#EEEDFE', PUD = '#3C3489'
+// Fixed colors (non-accent)
 export const GR = '#1D9E75', GRB = '#EAF7F0', GRD = '#0A5040'
 
 export const todayStr = () => new Date().toISOString().slice(0, 10)
 export const nowStr   = () => new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
 
-export const DEFAULT_DATA = { members: [], events: [], circleName: '' }
+export const DEFAULT_DATA = { members: [], events: [], circleName: '', accentColor: 'rose' }
 
 // ── Apps Script (v2 with log support) ────────────────────────
 export const APPS_SCRIPT = `function doGet(e) {

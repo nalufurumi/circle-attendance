@@ -1,0 +1,86 @@
+:root {
+  --color-background-primary:   #ffffff;
+  --color-background-secondary: #f6f6f8;
+  --color-background-tertiary:  #ededf0;
+  --color-background-success:   #eaf7f0;
+  --color-background-warning:   #fff8e8;
+  --color-background-danger:    #fdeaea;
+  --color-text-primary:   #1a1a2e;
+  --color-text-secondary: #65637a;
+  --color-text-tertiary:  #9e9cb5;
+  --color-text-success:   #0f6e56;
+  --color-text-warning:   #854f0b;
+  --color-text-danger:    #a32d2d;
+  --color-border-tertiary: rgba(0,0,0,0.08);
+  --color-border-secondary: rgba(0,0,0,0.16);
+  --color-border-primary:   rgba(0,0,0,0.28);
+  --color-border-success:  #9fe1cb;
+  --color-border-warning:  #fac775;
+  --color-border-danger:   #f7c1c1;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary:   #1e1b2e;
+    --color-background-secondary: #2a2740;
+    --color-background-tertiary:  #16131f;
+    --color-background-success:   #0d2e22;
+    --color-background-warning:   #2e1f00;
+    --color-background-danger:    #2e1010;
+    --color-text-primary:   #f0eefa;
+    --color-text-secondary: #9e9cb5;
+    --color-text-tertiary:  #6a6885;
+    --color-text-success:   #5dcaa5;
+    --color-text-warning:   #ef9f27;
+    --color-text-danger:    #f09595;
+    --color-border-tertiary:  rgba(255,255,255,0.08);
+    --color-border-secondary: rgba(255,255,255,0.16);
+    --color-border-primary:   rgba(255,255,255,0.28);
+    --color-border-success:  #0f6e56;
+    --color-border-warning:  #854f0b;
+    --color-border-danger:   #a32d2d;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background-tertiary);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--color-background-tertiary);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="url"],
+select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: #D4537E; }
+
+button { font-family: var(--font-sans); cursor: pointer; }
+
+p { line-height: 1.5; }

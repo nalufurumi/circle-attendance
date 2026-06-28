@@ -2,10 +2,48 @@ import { useState, useEffect } from 'react'
 import { loadData, saveData, getLogs, migrate, CURRENT_DATA_VERSION } from '../lib/api.js'
 import { APPS_SCRIPT } from '../lib/constants.js'
 
-const DEV_PW    = import.meta.env.VITE_DEV_PASSWORD || 'circledev'
-const APP_VER   = '2.1.0'
-const REPO_URL  = 'https://github.com/nalufurumi/circle-attendance'
-const PROD_URL  = 'https://circle-attendance-chi.vercel.app'
+const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || 'circledev'
+const BUG_URL      = import.meta.env.VITE_BUG_REPORT_URL || ''
+const APP_VER      = '2.1.0'
+const CONTACT      = 'nalufurumi@gmail.com'
+const REPO_URL     = 'https://github.com/nalufurumi/circle-attendance'
+const PROD_URL     = 'https://circle-attendance-chi.vercel.app'
+
+const BUG_REPORT_SCRIPT = `const NOTIFY_EMAIL = 'nalufurumi@gmail.com';
+
+function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('bugs');
+  if (!sh || sh.getLastRow() <= 1) return out('[]');
+  var rows = sh.getRange(2, 1, sh.getLastRow()-1, 7).getValues();
+  return out(JSON.stringify(rows.map(function(r) {
+    return {at:r[0],type:r[1],message:r[2],steps:r[3],email:r[4],version:r[5],ua:r[6]};
+  }).reverse()));
+}
+
+function doPost(e) {
+  var payload = JSON.parse(e.postData.contents);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('bugs') || ss.insertSheet('bugs');
+  if (sh.getLastRow() === 0) {
+    sh.getRange(1,1,1,7).setValues([['日時','種別','内容','再現手順','連絡先','バージョン','UA']]);
+  }
+  sh.appendRow([payload.at||'',payload.type||'bug',payload.message||'',
+    payload.steps||'',payload.email||'',payload.version||'',payload.ua||'']);
+  MailApp.sendEmail({
+    to: NOTIFY_EMAIL,
+    subject: '[出席管理] '+(payload.type==='feature'?'機能要望':'バグ報告')+': '+(payload.message||'').slice(0,50),
+    body: '【種別】'+payload.type+'\n【内容】'+payload.message+
+          '\n【再現手順】'+(payload.steps||'未記入')+
+          '\n【連絡先】'+(payload.email||'未記入')+
+          '\n【バージョン】'+payload.version+'\n【UA】'+payload.ua,
+  });
+  return out('{"ok":true}');
+}
+
+function out(t) {
+  return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.JSON);
+}\``
 
 // ── Dark terminal theme vars ──────────────────────────────────
 const T = {
@@ -94,6 +132,11 @@ export default function DevPage() {
 
   // ── Cache ──
   const [lsItems, setLsItems] = useState([])
+
+  // ── Bug reports ──
+  const [bugs,        setBugs]        = useState(null)
+  const [bugsLoading, setBugsLoading] = useState(false)
+  const [bugScriptCopied, setBugScriptCopied] = useState(false)
 
   // ── Auth ──
   const handleAuth = () => {
@@ -210,6 +253,7 @@ export default function DevPage() {
     { id: 'diag',  label: '診断' },
     { id: 'data',  label: 'データ' },
     { id: 'logs',  label: 'ログ' },
+    { id: 'bugs',  label: '🐛 バグ報告' },
     { id: 'cache', label: 'キャッシュ' },
     { id: 'build', label: 'ビルド' },
   ]
@@ -358,6 +402,91 @@ export default function DevPage() {
               </>
             )}
             {logsData?._error && <p style={{ color: T.red, fontSize: 12 }}>Error: {logsData._error}</p>}
+          </div>
+        )}
+
+        {/* ── BUG REPORTS ── */}
+        {tab === 'bugs' && (
+          <div>
+            <Label>バグ報告・問い合わせ</Label>
+
+            {/* Setup status */}
+            <div style={{ background: BUG_URL ? T.greenBg : T.redBg, border: `1px solid ${BUG_URL ? T.greenBord : T.redBord}`, borderRadius: 6, padding: 12, marginBottom: 16 }}>
+              <p style={{ color: BUG_URL ? T.green : T.amber, fontSize: 12, marginBottom: 4 }}>
+                {BUG_URL ? '✓ バグ報告スクリプト接続済み' : '⚠ VITE_BUG_REPORT_URL が未設定 — 以下を参照してセットアップしてください'}
+              </p>
+              <p style={{ color: T.textDim, fontSize: 11 }}>
+                問い合わせ先メール: <a href={"mailto:" + CONTACT} style={{ color: T.blue }}>{CONTACT}</a>
+              </p>
+              <p style={{ color: T.textDim, fontSize: 11, marginTop: 4 }}>
+                ユーザー向けレポートページ: <a href="/report" style={{ color: T.blue }}>/report</a>
+              </p>
+            </div>
+
+            {/* Fetch button */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <button onClick={fetchBugs} disabled={bugsLoading} style={{ padding: '6px 14px', background: T.border, border: `1px solid ${T.border2}`, color: T.textMuted, cursor: 'pointer', borderRadius: 5, fontSize: 12 }}>
+                {bugsLoading ? '取得中...' : '最新を取得'}
+              </button>
+              {Array.isArray(bugs) && bugs.length > 0 && (
+                <button onClick={() => downloadJSON(bugs, 'bug_reports')} style={{ padding: '6px 14px', background: T.greenBg, border: `1px solid ${T.greenBord}`, color: T.green, cursor: 'pointer', borderRadius: 5, fontSize: 12 }}>
+                  📥 エクスポート
+                </button>
+              )}
+            </div>
+
+            {/* Bug list */}
+            {bugs?._nourl && (
+              <div>
+                <p style={{ color: T.amber, fontSize: 12, marginBottom: 12 }}>バグ報告スクリプトの設定手順：</p>
+                <ol style={{ color: T.textDim, fontSize: 11, paddingLeft: 18, lineHeight: 2.2 }}>
+                  <li>Google スプレッドシートを新規作成（バグ報告専用）</li>
+                  <li>「拡張機能」→「Apps Script」を開く</li>
+                  <li>下のコードを貼り付けてデプロイ（アクセス: 全員）</li>
+                  <li>Vercel の Environment Variables に <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: 3 }}>VITE_BUG_REPORT_URL</code> を追加</li>
+                  <li>Vercel で Redeploy</li>
+                </ol>
+                <div style={{ position: 'relative', marginTop: 12 }}>
+                  <CodeBlock maxHeight={220}>{BUG_REPORT_SCRIPT}</CodeBlock>
+                  <button onClick={() => { navigator.clipboard.writeText(BUG_REPORT_SCRIPT); setBugScriptCopied(true); setTimeout(() => setBugScriptCopied(false), 2000) }} style={{ position: 'absolute', top: 6, right: 6, padding: '2px 8px', background: T.surface, border: `1px solid ${T.border2}`, color: T.textDim, cursor: 'pointer', borderRadius: 4, fontSize: 10 }}>
+                    {bugScriptCopied ? '✓ コピー' : 'コピー'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {bugs?._error && <p style={{ color: T.red, fontSize: 12 }}>Error: {bugs._error}</p>}
+            {Array.isArray(bugs) && (
+              <>
+                {/* Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+                  {[
+                    { label: '合計', val: bugs.length, color: T.textMuted },
+                    { label: 'バグ', val: bugs.filter(b => b.type === 'bug').length, color: T.red },
+                    { label: '機能要望', val: bugs.filter(b => b.type === 'feature').length, color: T.blue },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 5, padding: '8px 10px', textAlign: 'center' }}>
+                      <p style={{ fontSize: 20, fontWeight: 600, color: s.color, margin: 0 }}>{s.val}</p>
+                      <p style={{ fontSize: 11, color: T.textDim, margin: 0 }}>{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+                {bugs.length === 0 && <p style={{ color: T.textDim, fontSize: 12 }}>報告なし</p>}
+                {bugs.map((b, i) => (
+                  <div key={i} style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 5, padding: '10px 12px', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: b.type === 'bug' ? T.redBg : b.type === 'feature' ? '#0f1929' : T.border, color: b.type === 'bug' ? T.red : b.type === 'feature' ? T.blue : T.textDim, border: `1px solid ${b.type === 'bug' ? T.redBord : b.type === 'feature' ? '#1e3a5f' : T.border}` }}>
+                        {b.type === 'bug' ? '🐛 バグ' : b.type === 'feature' ? '💡 要望' : '💬 その他'}
+                      </span>
+                      <span style={{ color: T.textDim, fontSize: 10 }}>{String(b.at).slice(0, 16)}</span>
+                    </div>
+                    <p style={{ color: '#f0f0f5', fontSize: 12, margin: '4px 0' }}>{b.message}</p>
+                    {b.steps && <p style={{ color: T.textDim, fontSize: 11, margin: '3px 0' }}>手順: {b.steps}</p>}
+                    {b.email && <p style={{ color: T.blue, fontSize: 11, margin: '3px 0' }}>返信先: {b.email}</p>}
+                    <p style={{ color: T.textDim, fontSize: 10, margin: '3px 0 0' }}>v{b.version}</p>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
 

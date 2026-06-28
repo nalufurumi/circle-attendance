@@ -649,6 +649,11 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             <button onClick={onSignOut} style={{ width: '100%', padding: '10px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <i className="ti ti-logout" style={{ fontSize: 15 }}></i>ログアウト
             </button>
+            <div style={{ textAlign: 'center', marginTop: 20, paddingTop: 16, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+              <a href="/report" style={{ fontSize: 12, color: 'var(--color-text-tertiary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <i className="ti ti-bug" style={{ fontSize: 13 }}></i>バグ報告・お問い合わせ
+              </a>
+            </div>
           </div>
         )}
       </div>

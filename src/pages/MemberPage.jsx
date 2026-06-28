@@ -173,6 +173,11 @@ export default function MemberPage() {
             <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 12 }}>
               タップで切り替え：○ 出席 → △ 遅刻 → × 欠席 → － 未記入
             </p>
+            <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+              <a href="/report" style={{ fontSize: 12, color: 'var(--color-text-tertiary)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <i className="ti ti-bug" style={{ fontSize: 13 }}></i>バグ報告・お問い合わせ
+              </a>
+            </div>
           </>
         )}
       </div>

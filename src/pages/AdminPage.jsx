@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { loadData, saveData, getLogs, mkLog } from '../lib/api.js'
 import {
   CLIENT_ID, COLORS, getColor, STATUS_ORDER, STATUS, DOT,
-  EVENT_TYPES, ACCENT_PRESETS, applyAccent, GR, GRB, GRD,
+  EVENT_TYPES, ACCENT_PRESETS, applyAccent, isValidHex, GR, GRB, GRD,
   todayStr, DEFAULT_DATA, APPS_SCRIPT,
 } from '../lib/constants.js'
 
@@ -184,6 +184,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [scriptCopied, setScriptCopied] = useState(false)
   const [showScript,   setShowScript]   = useState(false)
   const [settingsMsg,  setSettingsMsg]  = useState('')
+  const [customHex,    setCustomHex]    = useState(() => {
+    const ac = data?.accentColor
+    return (typeof ac === 'string' && ac.startsWith('#')) ? ac : ''
+  })
 
   const adminLabel = `${getDisplayName(user)} (${user.email})`
 
@@ -599,7 +603,9 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>選択したカラーはメンバーページにも反映されます</p>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+
+              {/* Preset swatches */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
                 {ACCENT_PRESETS.map(preset => {
                   const isActive = (data.accentColor || 'rose') === preset.id
                   return (
@@ -607,21 +613,97 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       key={preset.id}
                       onClick={() => {
                         applyAccent(preset)
+                        setCustomHex('')
                         const nd = { ...data, accentColor: preset.id }
-                        update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.accentColor || 'rose', after: `テーマカラー変更: ${preset.label}` }))
+                        update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.accentColor || 'rose', after: `テーマカラー: ${preset.label}` }))
                       }}
                       title={preset.label}
                       style={{
                         width: 38, height: 38, borderRadius: '50%',
                         background: preset.main, border: 'none', cursor: 'pointer',
                         outline: isActive ? `3px solid ${preset.main}` : 'none',
-                        outlineOffset: 3, transition: 'transform 0.1s, outline 0.1s',
+                        outlineOffset: 3, transition: 'transform 0.1s',
                         transform: isActive ? 'scale(1.12)' : 'scale(1)',
                       }}
                     />
                   )
                 })}
               </div>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ flex: 1, height: '0.5px', background: 'var(--color-border-tertiary)' }} />
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>またはカラーコードを入力</span>
+                <div style={{ flex: 1, height: '0.5px', background: 'var(--color-border-tertiary)' }} />
+              </div>
+
+              {/* Custom hex input */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {/* Color preview circle */}
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                  background: isValidHex(customHex) ? customHex : 'var(--color-background-tertiary)',
+                  border: '1.5px solid var(--color-border-secondary)',
+                  outline: (data.accentColor?.startsWith('#') && data.accentColor === customHex) ? `3px solid ${customHex}` : 'none',
+                  outlineOffset: 3, transition: 'background 0.1s',
+                }} />
+
+                {/* Native color picker (hidden, triggered by button) */}
+                <label title="カラーピッカーを開く" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 'var(--border-radius-md)', border: '1.5px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)', cursor: 'pointer', flexShrink: 0 }}>
+                  <i className="ti ti-color-picker" style={{ fontSize: 16, color: 'var(--color-text-secondary)' }}></i>
+                  <input
+                    type="color"
+                    value={isValidHex(customHex) ? customHex : '#E8527A'}
+                    onChange={e => {
+                      const v = e.target.value
+                      setCustomHex(v)
+                      applyAccent(v) // live preview
+                    }}
+                    style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+                  />
+                </label>
+
+                {/* Hex text input */}
+                <input
+                  type="text"
+                  placeholder="#FF1493"
+                  value={customHex}
+                  maxLength={7}
+                  onChange={e => {
+                    let v = e.target.value
+                    if (v && !v.startsWith('#')) v = '#' + v
+                    setCustomHex(v)
+                    if (isValidHex(v)) applyAccent(v) // live preview
+                  }}
+                  style={{ flex: 1, fontFamily: 'ui-monospace, SFMono-Regular, monospace', letterSpacing: 1, borderColor: customHex && !isValidHex(customHex) ? 'var(--color-text-danger)' : undefined }}
+                />
+
+                {/* Apply button */}
+                <button
+                  onClick={() => {
+                    if (!isValidHex(customHex)) return
+                    applyAccent(customHex)
+                    const nd = { ...data, accentColor: customHex }
+                    update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.accentColor || 'rose', after: `テーマカラー: ${customHex}` }))
+                  }}
+                  disabled={!isValidHex(customHex)}
+                  style={{
+                    padding: '0 14px', height: 38, background: isValidHex(customHex) ? AC : 'var(--color-background-secondary)',
+                    border: 'none', borderRadius: 'var(--border-radius-md)',
+                    color: isValidHex(customHex) ? '#fff' : 'var(--color-text-tertiary)',
+                    cursor: isValidHex(customHex) ? 'pointer' : 'default',
+                    fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0,
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  適用
+                </button>
+              </div>
+              {customHex && !isValidHex(customHex) && (
+                <p style={{ fontSize: 11, color: 'var(--color-text-danger)', marginTop: 6 }}>
+                  正しい形式で入力してください（例：#FF1493）
+                </p>
+              )}
             </Card>
 
             {/* Circle name */}

@@ -12,15 +12,47 @@ export const ACCENT_PRESETS = [
   { id: 'red',     main: '#E53935', bg: '#FEF2F2', dark: '#B71C1C', label: 'レッド' },
 ]
 
-/** Apply accent preset to CSS variables (affects whole app instantly) */
-export function applyAccent(presetOrId) {
-  const preset = typeof presetOrId === 'string'
-    ? ACCENT_PRESETS.find(p => p.id === presetOrId) || ACCENT_PRESETS[0]
-    : presetOrId
-  const r = document.documentElement
-  r.style.setProperty('--accent',      preset.main)
-  r.style.setProperty('--accent-bg',   preset.bg)
-  r.style.setProperty('--accent-dark', preset.dark)
+/** Parse #rrggbb → [r,g,b] */
+function hexToRgb(hex) {
+  const m = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : null
+}
+
+/**
+ * Apply accent color to CSS variables (affects whole app instantly).
+ * Accepts:
+ *   - preset ID string  e.g. 'rose'
+ *   - preset object     e.g. { main, bg, dark }
+ *   - custom hex string e.g. '#FF1493'  → bg/dark auto-generated
+ */
+export function applyAccent(colorOrId) {
+  let main, bg, dark
+
+  if (typeof colorOrId === 'string' && colorOrId.startsWith('#')) {
+    // ── Custom hex ──────────────────────────────────
+    const rgb = hexToRgb(colorOrId)
+    if (!rgb) return
+    const [r, g, b] = rgb
+    main = colorOrId
+    bg   = `rgba(${r},${g},${b},0.12)`
+    dark = `rgb(${Math.round(r*.65)},${Math.round(g*.65)},${Math.round(b*.65)})`
+  } else {
+    // ── Preset ID or preset object ──────────────────
+    const preset = typeof colorOrId === 'string'
+      ? ACCENT_PRESETS.find(p => p.id === colorOrId) || ACCENT_PRESETS[0]
+      : colorOrId
+    main = preset.main; bg = preset.bg; dark = preset.dark
+  }
+
+  const root = document.documentElement
+  root.style.setProperty('--accent',      main)
+  root.style.setProperty('--accent-bg',   bg)
+  root.style.setProperty('--accent-dark', dark)
+}
+
+/** Validate hex color string */
+export function isValidHex(s) {
+  return /^#[0-9A-Fa-f]{6}$/.test(s)
 }
 
 export const COLORS = [

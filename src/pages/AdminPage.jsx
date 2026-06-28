@@ -8,14 +8,20 @@ import {
 
 // ── Helpers ───────────────────────────────────────────────────
 function parseJwt(token) {
+  // UTF-8 対応デコード（atob は ASCII のみのため TextDecoder を使用）
   const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-  return JSON.parse(atob(b64))
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+  return JSON.parse(new TextDecoder('utf-8').decode(bytes))
 }
 function getStoredUser() {
   try { return JSON.parse(localStorage.getItem('circle_admin')) } catch { return null }
 }
 function getStoredScript(sub) {
   return localStorage.getItem(`circle_script_${sub}`) || ''
+}
+/** displayName（任意設定）があればそれを、なければ Google アカウント名を返す */
+function getDisplayName(user) {
+  return user?.displayName?.trim() || user?.name || user?.email || '管理者'
 }
 
 // ── Micro UI ──────────────────────────────────────────────────
@@ -150,7 +156,7 @@ function OnboardingView({ user, onSetScript, onSignOut }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
-function Dashboard({ user, scriptUrl, onSignOut, onChangeScript }) {
+function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser }) {
   const [data,       setData]       = useState(DEFAULT_DATA)
   const [loading,    setLoading]    = useState(true)
   const [saveStatus, setSaveStatus] = useState('idle')
@@ -166,14 +172,15 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript }) {
   const [logs,       setLogs]       = useState([])
   const [logsLoading,setLogsLoading]= useState(false)
   // Settings
-  const [circleName, setCircleName] = useState('')
-  const [newScript,  setNewScript]  = useState(scriptUrl)
-  const [copied,     setCopied]     = useState('')
-  // Script copy
+  const [circleName,   setCircleName]   = useState('')
+  const [displayName,  setDisplayName]  = useState(user.displayName || '')
+  const [newScript,    setNewScript]    = useState(scriptUrl)
+  const [copied,       setCopied]       = useState('')
   const [scriptCopied, setScriptCopied] = useState(false)
-  const [showScript, setShowScript] = useState(false)
+  const [showScript,   setShowScript]   = useState(false)
+  const [settingsMsg,  setSettingsMsg]  = useState('')
 
-  const adminLabel = `管理者 (${user.email})`
+  const adminLabel = `${getDisplayName(user)} (${user.email})`
 
   useEffect(() => {
     loadData(scriptUrl)
@@ -285,8 +292,8 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript }) {
         <span style={{ color: PK }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName || '出席管理'}</span>
         <SaveDot />
-        <Avatar name={user.name} src={user.picture} size={28} />
-        <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</span>
+        <Avatar name={getDisplayName(user)} src={user.picture} size={28} />
+        <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getDisplayName(user)}</span>
         <button onClick={onSignOut} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: 0 }}>
           <i className="ti ti-logout" style={{ fontSize: 16 }}></i>
         </button>
@@ -556,6 +563,28 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript }) {
           <div>
             <p style={{ fontWeight: 500, marginBottom: 16 }}>設定</p>
 
+            {/* Display name */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                <i className="ti ti-user-circle" style={{ fontSize: 18, color: PU, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>管理者表示名（任意）</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>変更ログやヘッダーに表示される名前。未入力の場合はGoogleアカウント名を使用。</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="text" placeholder={user.name} value={displayName} onChange={e => setDisplayName(e.target.value)} style={{ flex: 1 }} />
+                <button onClick={() => {
+                  const newUser = { ...user, displayName: displayName.trim() || null }
+                  localStorage.setItem('circle_admin', JSON.stringify(newUser))
+                  onUpdateUser(newUser)
+                  setSettingsMsg('✓ 表示名を保存しました')
+                  setTimeout(() => setSettingsMsg(''), 2500)
+                }} style={{ padding: '0 14px', background: PU, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>保存</button>
+              </div>
+              {settingsMsg && <p style={{ fontSize: 12, color: 'var(--color-text-success)', marginTop: 6 }}>{settingsMsg}</p>}
+            </Card>
+
             {/* Circle name */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
@@ -655,7 +684,12 @@ export default function AdminPage() {
     setScriptUrl('')
   }, [])
 
+  const handleUpdateUser = useCallback((updatedUser) => {
+    localStorage.setItem('circle_admin', JSON.stringify(updatedUser))
+    setUser(updatedUser)
+  }, [])
+
   if (!user)       return <SignInView onCredential={handleCredential} />
   if (!scriptUrl)  return <OnboardingView user={user} onSetScript={handleSetScript} onSignOut={handleSignOut} />
-  return <Dashboard user={user} scriptUrl={scriptUrl} onSignOut={handleSignOut} onChangeScript={handleSetScript} />
+  return <Dashboard user={user} scriptUrl={scriptUrl} onSignOut={handleSignOut} onChangeScript={handleSetScript} onUpdateUser={handleUpdateUser} />
 }

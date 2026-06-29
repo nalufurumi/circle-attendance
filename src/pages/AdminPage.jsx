@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { loadData, saveData, getLogs, mkLog } from '../lib/api.js'
 import {
-  CLIENT_ID, COLORS, getColor, STATUS_ORDER, STATUS, DOT,
+  CLIENT_ID, COLORS, getColor,
+  PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   EVENT_TYPES, ACCENT_PRESETS, applyAccent, isValidHex, GR, GRB, GRD,
   todayStr, DEFAULT_DATA, APPS_SCRIPT,
 } from '../lib/constants.js'
@@ -169,7 +170,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   // Events tab
   const [showAddEv,  setShowAddEv]  = useState(false)
   const [expandedEv, setExpandedEv] = useState(null)
-  const [newEv,      setNewEv]      = useState({ date: todayStr(), name: '', type: '練習', color: 'pink' })
+  const [newEv,      setNewEv]      = useState({ date: todayStr(), name: '', type: '練習', color: 'pink', tags: [], memo: '' })
   // Members tab
   const [showAddMem, setShowAddMem] = useState(false)
   const [newMem,     setNewMem]     = useState('')
@@ -188,12 +189,19 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     const ac = data?.accentColor
     return (typeof ac === 'string' && ac.startsWith('#')) ? ac : ''
   })
+  // Events tab extras
+  const [tagInput,     setTagInput]     = useState('')
+  const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
+  // Stats threshold
+  const [threshold,    setThreshold]    = useState(() => data?.alertThreshold ?? '')
+  // New tabs
+  const [adminTab2,    setAdminTab2]    = useState('events')   // same as adminTab alias
 
   const adminLabel = `${getDisplayName(user)} (${user.email})`
 
   useEffect(() => {
     loadData(scriptUrl)
-      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || ''); if (m.accentColor) applyAccent(m.accentColor) })
+      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || ''); setThreshold(m.alertThreshold ?? ''); if (m.accentColor) applyAccent(m.accentColor) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [scriptUrl])
@@ -227,10 +235,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
   const addEvent = () => {
     if (!newEv.date || !newEv.name.trim()) return
-    const ev = { id: `e${Date.now()}`, date: newEv.date, name: newEv.name.trim(), type: newEv.type, color: newEv.color, attendance: {} }
+    const ev = { id: `e${Date.now()}`, date: newEv.date, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags||[], memo: newEv.memo||'', attendance: {} }
     const nd = { ...data, events: [...data.events, ev].sort((a, b) => b.date.localeCompare(a.date)) }
     update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, before: '（未作成）', after: 'イベント追加' }))
-    setNewEv({ date: todayStr(), name: '', type: '練習', color: 'pink' }); setShowAddEv(false); setExpandedEv(ev.id)
+    setNewEv({ date: todayStr(), name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput(''); setShowAddEv(false); setExpandedEv(ev.id)
   }
   const removeEvent = id => {
     const ev = data.events.find(e => e.id === id)
@@ -241,23 +249,37 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
 
   // Admin attendance cycle (override)
-  const cycleAdmin = (evId, member) => {
-    const ev = data.events.find(e => e.id === evId)
-    if (!ev) return
-    const cur = ev.attendance?.[member] || 'unknown'
-    const nxt = STATUS_ORDER[(STATUS_ORDER.indexOf(cur) + 1) % STATUS_ORDER.length]
-    const nd = { ...data, events: data.events.map(e => e.id !== evId ? e : { ...e, attendance: { ...e.attendance, [member]: nxt } }) }
-    update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, member, before: cur, after: nxt }))
+  const cycleAdmin = (evId, member, field) => {
+    const ev = data.events.find(e => e.id === evId); if (!ev) return
+    const order = field === 'plan' ? PLAN_ORDER : ACTUAL_ORDER
+    const oldAtt = ev.attendance?.[member] || { plan: null, actual: null, reason: null }
+    const cur = oldAtt[field] ?? null
+    const nxt = order[(order.indexOf(cur) + 1) % order.length]
+    const newAtt = { ...oldAtt, [field]: nxt }
+    const nd = { ...data, events: data.events.map(e => e.id !== evId ? e : { ...e, attendance: { ...e.attendance, [member]: newAtt } }) }
+    update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, member, before: String(cur||'未入力'), after: String(nxt||'未入力') }))
   }
 
   const saveCircleName = () => {
     const nd = { ...data, circleName }
     update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.circleName || '（未設定）', after: `サークル名: ${circleName}` }))
   }
+  const [notice, setNotice] = useState(data.notice || '')
+  const saveNotice = () => {
+    update({ ...data, notice }, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.notice||'（未設定）', after: `お知らせ更新` }))
+    setSettingsMsg('✓ お知らせを保存しました'); setTimeout(()=>setSettingsMsg(''), 2500)
+  }
+  const saveThreshold = (val) => {
+    const n = val === '' ? null : Number(val)
+    update({ ...data, alertThreshold: n }, mkLog({ by: adminLabel, type: 'admin', member: '', before: String(data.alertThreshold??'なし'), after: `アラート閾値: ${n==null?'なし':n+'%'}` }))
+  }
 
   const getStats = () => data.members.map(member => {
     let p = 0, l = 0, ab = 0, un = 0
-    data.events.forEach(ev => { const s = ev.attendance?.[member] || 'unknown'; if (s === 'present') p++; else if (s === 'late') l++; else if (s === 'absent') ab++; else un++ })
+    data.events.forEach(ev => {
+      const s = ev.attendance?.[member]?.actual ?? null
+      if (s === 'present') p++; else if (s === 'late') l++; else if (s === 'absent') ab++; else un++
+    })
     const rec = data.events.length - un, rate = rec > 0 ? Math.round(((p + l) / rec) * 100) : null
     return { member, present: p, late: l, absent: ab, unknown: un, rec, rate }
   }).sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1))
@@ -316,6 +338,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             { id: 'members', icon: 'ti-users',       label: 'メンバー' },
             { id: 'stats',   icon: 'ti-chart-bar',   label: '統計' },
             { id: 'log',     icon: 'ti-history',     label: 'ログ' },
+            { id: 'requests',icon: 'ti-user-check',  label: '申請' },
             { id: 'settings',icon: 'ti-settings',    label: '設定' },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0 10px', border: 'none', borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent', background: 'transparent', color: tab === t.id ? AC : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 10, fontWeight: tab === t.id ? 500 : 400 }}>
@@ -382,6 +405,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</p>
                         <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date} · {ev.type}</p>
+                        {ev.tags?.length>0&&<div style={{ display:'flex', gap:3, flexWrap:'wrap', marginTop:3 }}>{ev.tags.map(t=><span key={t} style={{ fontSize:10, padding:'1px 6px', background:ACB, color:ACD, borderRadius:999 }}>#{t}</span>)}</div>}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -397,21 +421,41 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '12px 14px' }}>
                       {data.members.length === 0 ? <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', fontSize: 13 }}>メンバーを先に登録してください</p> : (
                         <>
-                          <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 10 }}>
-                            <i className="ti ti-shield" style={{ fontSize: 11, marginRight: 4, color: AC }}></i>
-                            管理者モード：全メンバーの出席を編集できます（変更ログに記録）
-                          </p>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                            {data.members.map(member => {
-                              const st = ev.attendance?.[member] || 'unknown'; const s = STATUS[st]
-                              return (
-                                <button key={member} onClick={() => cycleAdmin(ev.id, member)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', cursor: 'pointer' }}>
-                                  <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{member}</span>
-                                  <span style={{ fontSize: 16, fontWeight: 500, color: s.text }}>{s.label}</span>
-                                </button>
-                              )
-                            })}
-                          </div>
+                          {/* Plan / Actual mode toggle */}
+                          {(() => {
+                            const mode = evModes[ev.id] || (ev.date > todayStr() ? 'plan' : 'actual')
+                            const isUpcoming = ev.date > todayStr()
+                            const statusMap = mode==='plan' ? PLAN_STATUS : ACTUAL_STATUS
+                            const statusOrder = mode==='plan' ? PLAN_ORDER : ACTUAL_ORDER
+                            return (
+                              <>
+                                <div style={{ display:'flex', gap:6, marginBottom:10, alignItems:'center' }}>
+                                  {['plan','actual'].map(m=>(
+                                    <button key={m} onClick={()=>setEvModes({...evModes,[ev.id]:m})} style={{ padding:'4px 12px', borderRadius:999, border:'none', cursor:'pointer', fontSize:12, fontWeight:mode===m?500:400, background:mode===m?AC:'var(--color-background-secondary)', color:mode===m?'#fff':'var(--color-text-secondary)' }}>
+                                      {m==='plan'?'事前入力':'当日記録'}
+                                    </button>
+                                  ))}
+                                  <span style={{ fontSize:11, color:'var(--color-text-tertiary)', marginLeft:4 }}>{isUpcoming?'（未来のイベント）':'（過去・当日）'}</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                                  {data.members.map(member => {
+                                    const att = ev.attendance?.[member]||{plan:null,actual:null,reason:null}
+                                    const cur = att[mode]??null
+                                    const s = statusMap[cur]||statusMap[null]
+                                    return (
+                                      <div key={member}>
+                                        <button onClick={() => cycleAdmin(ev.id, member, mode)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 10px', background:s.bg, border:`0.5px solid ${s.border}`, borderRadius:'var(--border-radius-md)', cursor:'pointer', width:'100%' }}>
+                                          <span style={{ fontSize:13, color:'var(--color-text-primary)' }}>{member}</span>
+                                          <span style={{ fontSize:14, fontWeight:500, color:s.text }}>{s.icon} {s.short}</span>
+                                        </button>
+                                        {att.reason&&<p style={{ fontSize:10, color:'var(--color-text-tertiary)', marginTop:2, paddingLeft:4 }}>理由: {att.reason}</p>}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </>
+                            )
+                          })()}
                         </>
                       )}
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -478,9 +522,20 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <i className="ti ti-download" style={{ fontSize: 13 }}></i>CSV
               </button>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>出席率＝（出席＋遅刻）÷ 記録済み回数</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（参加＋遅刻）÷ 当日記録済み回数</p>
+            {/* Alert threshold */}
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'8px 12px', background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-md)' }}>
+              <i className="ti ti-bell" style={{ fontSize:14, color:'var(--color-text-secondary)' }}></i>
+              <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>出席率アラート</span>
+              <input type="number" min="0" max="100" placeholder="例：60" value={threshold}
+                onChange={e=>{setThreshold(e.target.value);saveThreshold(e.target.value)}}
+                style={{ width:60, fontSize:13, padding:'4px 8px', marginLeft:'auto' }} />
+              <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>% 未満を強調</span>
+            </div>
             {getStats().length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-chart-bar" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>データがありません</p></div>}
             {getStats().map((s, rank) => {
+              const thresh = threshold !== '' ? Number(threshold) : null
+              const belowAlert = thresh !== null && s.rate !== null && s.rate < thresh
               const rc = s.rate == null ? 'var(--color-text-tertiary)' : s.rate >= 80 ? 'var(--color-text-success)' : s.rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
               return (
                 <Card key={s.member} style={{ padding: 14, marginBottom: 10 }}>
@@ -488,7 +543,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', width: 20 }}>#{rank + 1}</span>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{s.member.slice(0, 1)}</div>
-                      <span style={{ fontWeight: 500 }}>{s.member}</span>
+                      <span style={{ fontWeight: 500 }}>{s.member}</span>{belowAlert&&<span style={{ fontSize:11, padding:'1px 7px', background:'var(--color-background-danger)', color:'var(--color-text-danger)', borderRadius:999, fontWeight:500 }}>アラート</span>}
                     </div>
                     <span style={{ fontSize: 22, fontWeight: 500, color: rc }}>{s.rate == null ? '－' : `${s.rate}%`}</span>
                   </div>
@@ -704,6 +759,19 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   正しい形式で入力してください（例：#FF1493）
                 </p>
               )}
+            </Card>
+
+            {/* Notice (pinned message) */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:10 }}>
+                <i className="ti ti-pin" style={{ fontSize:18, color:AC, marginTop:2 }}></i>
+                <div>
+                  <p style={{ fontWeight:500, margin:0 }}>お知らせ（ピン留め）</p>
+                  <p style={{ fontSize:12, color:'var(--color-text-secondary)', marginTop:3 }}>メンバーページの上部に常時表示されます</p>
+                </div>
+              </div>
+              <textarea placeholder="例：次回は衣装持参でお願いします！&#10;空欄にすると非表示になります" value={notice} onChange={e=>setNotice(e.target.value)} style={{ minHeight:80, marginBottom:8 }} />
+              <button onClick={saveNotice} style={{ width:'100%', padding:'7px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:13 }}>保存する</button>
             </Card>
 
             {/* Circle name */}

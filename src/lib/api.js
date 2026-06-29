@@ -1,27 +1,48 @@
 const TIMEOUT = 10000
-const CURRENT_DATA_VERSION = 2
+const CURRENT_DATA_VERSION = 3
 
-/** Migrate data from older schema versions to current */
+/** Convert old string attendance value to new object format */
+function upgradeAtt(val) {
+  if (!val || typeof val === 'object') return val || { plan: null, actual: null, reason: null }
+  // Old string → new object (treat as actual, since these were post-event entries)
+  return { plan: null, actual: val === 'unknown' ? null : val, reason: null }
+}
+
+/** Run all schema migrations to bring data up to current version */
 function migrate(raw) {
-  if (!raw || typeof raw !== 'object') return { members: [], events: [], circleName: '', dataVersion: CURRENT_DATA_VERSION }
-  const v = raw.dataVersion || 1
-  if (v >= CURRENT_DATA_VERSION) return raw
+  if (!raw || typeof raw !== 'object') {
+    return { members: [], events: [], circleName: '', accentColor: 'rose', notice: '', alertThreshold: null, pendingMembers: [], dataVersion: CURRENT_DATA_VERSION }
+  }
+  const v = typeof raw.dataVersion === 'number' ? raw.dataVersion : 1
+  let d = { ...raw }
 
-  // v1 → v2: ensure all event fields exist, add circleName + dataVersion
-  return {
-    members: Array.isArray(raw.members) ? raw.members : [],
-    events: Array.isArray(raw.events) ? raw.events.map(ev => ({
+  // v1 → v2: add circleName, accentColor
+  if (v < 2) {
+    d.circleName  = d.circleName  || ''
+    d.accentColor = d.accentColor || 'rose'
+  }
+
+  // v2 → v3: attendance string → object, add tags/memo/notice/alertThreshold/pendingMembers
+  if (v < 3) {
+    d.events = (d.events || []).map(ev => ({
       id:         ev.id         || `e${Date.now()}${Math.random().toString(36).slice(2)}`,
       date:       ev.date       || '',
       name:       ev.name       || '',
       type:       ev.type       || 'その他',
       color:      ev.color      || 'pink',
-      attendance: ev.attendance || {},
-    })) : [],
-    circleName:  raw.circleName  || '',
-    accentColor: raw.accentColor || 'rose',
-    dataVersion: CURRENT_DATA_VERSION,
+      tags:       ev.tags       || [],
+      memo:       ev.memo       || '',
+      attendance: Object.fromEntries(
+        Object.entries(ev.attendance || {}).map(([k, v]) => [k, upgradeAtt(v)])
+      ),
+    }))
+    d.notice          = d.notice          || ''
+    d.alertThreshold  = d.alertThreshold  ?? null
+    d.pendingMembers  = d.pendingMembers  || []
   }
+
+  d.dataVersion = CURRENT_DATA_VERSION
+  return d
 }
 
 async function post(url, body) {
@@ -35,22 +56,18 @@ async function post(url, body) {
   return r.json()
 }
 
-/** Load current data from Apps Script, auto-migrating old schemas */
 export async function loadData(scriptUrl) {
   const r = await fetch(scriptUrl + '?action=get', { signal: AbortSignal.timeout(TIMEOUT) })
   if (!r.ok) throw new Error('HTTP ' + r.status)
-  const raw = await r.json()
-  return migrate(raw)
+  return migrate(await r.json())
 }
 
-/** Save data to Apps Script, optionally with one log entry */
 export async function saveData(scriptUrl, data, logEntry = null) {
   const body = { action: 'save', data }
   if (logEntry) body.log = logEntry
   return post(scriptUrl, body)
 }
 
-/** Fetch log entries (newest first, max 500) */
 export async function getLogs(scriptUrl) {
   try {
     const r = await fetch(scriptUrl + '?action=logs', { signal: AbortSignal.timeout(TIMEOUT) })
@@ -59,7 +76,6 @@ export async function getLogs(scriptUrl) {
   } catch { return [] }
 }
 
-/** Fire-and-forget log write (for member-side actions) */
 export function fireLog(scriptUrl, entry) {
   fetch(scriptUrl, {
     method: 'POST',
@@ -68,7 +84,6 @@ export function fireLog(scriptUrl, entry) {
   }).catch(() => {})
 }
 
-/** Build a log entry object */
 export function mkLog({ by, type, eventDate = '', eventName = '', member = '', before = '', after = '' }) {
   return {
     at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),

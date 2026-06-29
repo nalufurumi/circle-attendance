@@ -55,6 +55,25 @@ export function isValidHex(s) {
   return /^#[0-9A-Fa-f]{6}$/.test(s)
 }
 
+// ── Attendance status ─────────────────────────────────────────
+export const PLAN_ORDER   = ['attending', 'late', 'absent', 'undecided', null]
+export const ACTUAL_ORDER = ['present',   'late', 'absent', 'unknown',   null]
+
+export const PLAN_STATUS = {
+  attending: { label: '参加予定', short: '参加予定', icon: '○', bg: 'var(--color-background-success)', text: 'var(--color-text-success)', border: 'var(--color-border-success)' },
+  late:      { label: '遅刻予定', short: '遅刻予定', icon: '△', bg: 'var(--color-background-warning)', text: 'var(--color-text-warning)', border: 'var(--color-border-warning)' },
+  absent:    { label: '不参加',   short: '不参加',   icon: '×', bg: 'var(--color-background-danger)',  text: 'var(--color-text-danger)',  border: 'var(--color-border-danger)'  },
+  undecided: { label: '未定',     short: '未定',     icon: '？', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
+  null:      { label: '未入力',   short: '未入力',   icon: '－', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
+}
+export const ACTUAL_STATUS = {
+  present: { label: '参加',   short: '参加',   icon: '○', bg: 'var(--color-background-success)', text: 'var(--color-text-success)', border: 'var(--color-border-success)' },
+  late:    { label: '遅刻',   short: '遅刻',   icon: '△', bg: 'var(--color-background-warning)', text: 'var(--color-text-warning)', border: 'var(--color-border-warning)' },
+  absent:  { label: '不参加', short: '不参加', icon: '×', bg: 'var(--color-background-danger)',  text: 'var(--color-text-danger)',  border: 'var(--color-border-danger)'  },
+  unknown: { label: '不明',   short: '不明',   icon: '？', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
+  null:    { label: '未入力', short: '未入力', icon: '－', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
+}
+
 export const COLORS = [
   { id: 'pink',   hex: '#D4537E' },
   { id: 'red',    hex: '#E24B4A' },
@@ -83,7 +102,10 @@ export const GR = '#1D9E75', GRB = '#EAF7F0', GRD = '#0A5040'
 export const todayStr = () => new Date().toISOString().slice(0, 10)
 export const nowStr   = () => new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
 
-export const DEFAULT_DATA = { members: [], events: [], circleName: '', accentColor: 'rose' }
+export const DEFAULT_DATA = {
+  members: [], events: [], circleName: '', accentColor: 'rose',
+  notice: '', alertThreshold: null, pendingMembers: [], dataVersion: 3,
+}
 
 // ── Apps Script (v2 with log support) ────────────────────────
 export const APPS_SCRIPT = `function doGet(e) {

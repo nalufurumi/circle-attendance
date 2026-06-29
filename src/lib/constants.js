@@ -165,16 +165,27 @@ function buildView(ss, data) {
   vs.clearContents();
   if (!data.members||!data.events||!data.members.length||!data.events.length) return;
   var evs = data.events.slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
-  var hd = ['名前'].concat(evs.map(function(e){ return e.date+' '+e.name; })).concat(['出席率','欠席回数']);
+  var hd = ['名前'].concat(evs.map(function(e){ return e.date+' '+e.name; })).concat(['実績出席率','欠席回数']);
   vs.getRange(1,1,1,hd.length).setValues([hd]);
   data.members.forEach(function(m,i) {
-    var p=0,l=0,ab=0,tot=0;
+    var p=0,l=0,ab=0,ap=0,lp=0;
     var cells = evs.map(function(e) {
-      var s=(e.attendance&&e.attendance[m])||'';
-      if(s)tot++;
-      if(s==='present'){p++;return'○';} if(s==='late'){l++;return'△';} if(s==='absent'){ab++;return'×';} return'－';
+      var raw = (e.attendance && e.attendance[m]) || {};
+      // v3 format: object with plan/actual; v2 format: string (backward compat)
+      var actual = (typeof raw === 'string') ? raw : (raw.actual || '');
+      var plan   = (typeof raw === 'string') ? '' : (raw.plan   || '');
+      if(plan==='attending')ap++; else if(plan==='late')lp++;
+      if(actual==='present'){p++;return'○';}
+      if(actual==='late')   {l++;return'△';}
+      if(actual==='absent') {ab++;return'×';}
+      // Show plan if no actual yet
+      if(plan==='attending')return'[予]';
+      if(plan==='late')     return'[遅]';
+      if(plan==='absent')   return'[欠]';
+      return '－';
     });
-    var rate=tot>0?Math.round((p+l)/tot*100)+'%':'－';
+    var denom = ap + lp;
+    var rate  = denom > 0 ? Math.round((p+l)/denom*100)+'%' : '－';
     vs.getRange(i+2,1,1,cells.length+3).setValues([[m].concat(cells).concat([rate,ab])]);
   });
 }`

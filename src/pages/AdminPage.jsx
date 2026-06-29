@@ -170,7 +170,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   // Events tab
   const [showAddEv,  setShowAddEv]  = useState(false)
   const [expandedEv, setExpandedEv] = useState(null)
-  const [newEv,      setNewEv]      = useState({ date: todayStr(), name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+  const [newEv,      setNewEv]      = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
   // Members tab
   const [showAddMem, setShowAddMem] = useState(false)
   const [newMem,     setNewMem]     = useState('')
@@ -194,8 +194,8 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
   // Stats threshold
   const [threshold,    setThreshold]    = useState(() => data?.alertThreshold ?? '')
-  // New tabs
-  const [adminTab2,    setAdminTab2]    = useState('events')   // same as adminTab alias
+  // Admin confirmation
+  const [pendingChange, setPendingChange] = useState(null)  // { evId, ev, member, field, cur, nxt }
 
   const adminLabel = `${getDisplayName(user)} (${user.email})`
 
@@ -235,10 +235,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
   const addEvent = () => {
     if (!newEv.date || !newEv.name.trim()) return
-    const ev = { id: `e${Date.now()}`, date: newEv.date, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags||[], memo: newEv.memo||'', attendance: {} }
+    const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart||'', timeEnd: newEv.timeEnd||'', name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags||[], memo: newEv.memo||'', attendance: {} }
     const nd = { ...data, events: [...data.events, ev].sort((a, b) => b.date.localeCompare(a.date)) }
     update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, before: '（未作成）', after: 'イベント追加' }))
-    setNewEv({ date: todayStr(), name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput(''); setShowAddEv(false); setExpandedEv(ev.id)
+    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput(''); setShowAddEv(false); setExpandedEv(ev.id)
   }
   const removeEvent = id => {
     const ev = data.events.find(e => e.id === id)
@@ -255,6 +255,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     const oldAtt = ev.attendance?.[member] || { plan: null, actual: null, reason: null }
     const cur = oldAtt[field] ?? null
     const nxt = order[(order.indexOf(cur) + 1) % order.length]
+    setPendingChange({ evId, ev, member, field, cur, nxt, oldAtt })
+  }
+
+  const doChange = ({ evId, ev, member, field, nxt, oldAtt, cur }) => {
     const newAtt = { ...oldAtt, [field]: nxt }
     const nd = { ...data, events: data.events.map(e => e.id !== evId ? e : { ...e, attendance: { ...e.attendance, [member]: newAtt } }) }
     update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, member, before: String(cur||'未入力'), after: String(nxt||'未入力') }))
@@ -275,13 +279,17 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
 
   const getStats = () => data.members.map(member => {
-    let p = 0, l = 0, ab = 0, un = 0
+    let p = 0, l = 0, ab = 0, ap = 0, lp = 0
     data.events.forEach(ev => {
-      const s = ev.attendance?.[member]?.actual ?? null
-      if (s === 'present') p++; else if (s === 'late') l++; else if (s === 'absent') ab++; else un++
+      const att = ev.attendance?.[member] || {}
+      const actual = typeof att === 'string' ? att : (att.actual ?? null)
+      const plan   = typeof att === 'string' ? null : (att.plan   ?? null)
+      if (actual === 'present') p++; else if (actual === 'late') l++; else if (actual === 'absent') ab++
+      if (plan === 'attending') ap++; else if (plan === 'late') lp++
     })
-    const rec = data.events.length - un, rate = rec > 0 ? Math.round(((p + l) / rec) * 100) : null
-    return { member, present: p, late: l, absent: ab, unknown: un, rec, rate }
+    const denom = ap + lp   // 出席予定 + 遅刻予定 が分母
+    const rate  = denom > 0 ? Math.round(((p + l) / denom) * 100) : null
+    return { member, present: p, late: l, absent: ab, attendingPlan: ap, latePlan: lp, denom, rate }
   }).sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1))
 
   const exportCSV = () => {
@@ -404,7 +412,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       <div style={{ width: 4, height: 36, borderRadius: 2, background: getColor(ev.color), flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</p>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date} · {ev.type}</p>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd ? `〜${ev.timeEnd}` : '〜'}` : ''} · {ev.type}</p>
                         {ev.tags?.length>0&&<div style={{ display:'flex', gap:3, flexWrap:'wrap', marginTop:3 }}>{ev.tags.map(t=><span key={t} style={{ fontSize:10, padding:'1px 6px', background:ACB, color:ACD, borderRadius:999 }}>#{t}</span>)}</div>}
                       </div>
                     </div>
@@ -627,6 +635,32 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <p style={{ fontWeight: 500, marginBottom: 16 }}>設定</p>
 
+            {/* ★ Circle name FIRST ★ */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                <i className="ti ti-sparkles" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <p style={{ fontWeight: 500, margin: 0 }}>サークル名</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="text" placeholder="例：○○コピーダンスサークル" value={circleName} onChange={e => setCircleName(e.target.value)} style={{ flex: 1 }} />
+                <button onClick={saveCircleName} style={{ padding: '0 14px', background: GR, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>保存</button>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 6 }}>メンバー側の画面タイトルに表示されます</p>
+            </Card>
+
+            {/* ★ Notice ★ */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                <i className="ti ti-pin" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>お知らせ（ピン留め）</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>メンバーページの上部に常時表示されます</p>
+                </div>
+              </div>
+              <textarea placeholder="例：次回は衣装持参でお願いします！&#10;空欄にすると非表示になります" value={notice} onChange={e=>setNotice(e.target.value)} style={{ minHeight:80, marginBottom:8 }} />
+              <button onClick={saveNotice} style={{ width:'100%', padding:'7px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:13 }}>保存する</button>
+            </Card>
+
             {/* Display name */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
@@ -761,18 +795,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               )}
             </Card>
 
-            {/* Notice (pinned message) */}
-            <Card style={{ padding: 14, marginBottom: 12 }}>
-              <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:10 }}>
-                <i className="ti ti-pin" style={{ fontSize:18, color:AC, marginTop:2 }}></i>
-                <div>
-                  <p style={{ fontWeight:500, margin:0 }}>お知らせ（ピン留め）</p>
-                  <p style={{ fontSize:12, color:'var(--color-text-secondary)', marginTop:3 }}>メンバーページの上部に常時表示されます</p>
-                </div>
-              </div>
-              <textarea placeholder="例：次回は衣装持参でお願いします！&#10;空欄にすると非表示になります" value={notice} onChange={e=>setNotice(e.target.value)} style={{ minHeight:80, marginBottom:8 }} />
-              <button onClick={saveNotice} style={{ width:'100%', padding:'7px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:13 }}>保存する</button>
-            </Card>
+
 
             {/* Circle name */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
@@ -846,6 +869,29 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           </div>
         )}
       </div>
+
+      {/* ── Confirmation modal ── */}
+      {pendingChange && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.35)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick={()=>setPendingChange(null)}>
+          <div style={{ background:'var(--color-background-primary)', borderRadius:'var(--border-radius-lg)', padding:24, maxWidth:320, width:'100%', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }} onClick={e=>e.stopPropagation()}>
+            <p style={{ fontWeight:500, fontSize:15, marginBottom:6 }}>本当に変更しますか？</p>
+            <p style={{ fontSize:13, color:'var(--color-text-secondary)', marginBottom:4 }}>
+              <strong>{pendingChange.member}</strong> の{pendingChange.field==='plan'?'事前入力':'当日記録'}
+            </p>
+            <div style={{ display:'flex', alignItems:'center', gap:10, background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-md)', padding:'10px 14px', marginBottom:16 }}>
+              <span style={{ fontSize:16 }}>{(pendingChange.field==='plan'?PLAN_STATUS:ACTUAL_STATUS)[pendingChange.cur]?.icon||'－'}</span>
+              <span style={{ fontSize:13, color:'var(--color-text-secondary)' }}>{(pendingChange.field==='plan'?PLAN_STATUS:ACTUAL_STATUS)[pendingChange.cur]?.label||'未入力'}</span>
+              <i className="ti ti-arrow-right" style={{ fontSize:14, color:'var(--color-text-tertiary)', margin:'0 4px' }}></i>
+              <span style={{ fontSize:16 }}>{(pendingChange.field==='plan'?PLAN_STATUS:ACTUAL_STATUS)[pendingChange.nxt]?.icon||'－'}</span>
+              <span style={{ fontSize:13, fontWeight:500, color:(pendingChange.field==='plan'?PLAN_STATUS:ACTUAL_STATUS)[pendingChange.nxt]?.text||'var(--color-text-primary)' }}>{(pendingChange.field==='plan'?PLAN_STATUS:ACTUAL_STATUS)[pendingChange.nxt]?.label||'未入力'}</span>
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={()=>{doChange(pendingChange);setPendingChange(null)}} style={{ flex:1, padding:'10px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:14 }}>変更する</button>
+              <button onClick={()=>setPendingChange(null)} style={{ flex:1, padding:'10px', background:'transparent', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-md)', color:'var(--color-text-secondary)', cursor:'pointer', fontSize:14 }}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

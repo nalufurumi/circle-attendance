@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { loadData, saveData, mkLog } from '../lib/api.js'
 import {
@@ -90,6 +90,8 @@ export default function MemberPage() {
   const [reasonDraft, setReasonDraft] = useState({})
   const [showRequest, setShowRequest] = useState(false)
   const today = todayStr()
+  const timerRef = useRef({})
+  const latestData = useRef(null)
 
   useEffect(() => {
     const c = params.get('c')
@@ -104,17 +106,29 @@ export default function MemberPage() {
       .finally(() => setLoading(false))
   }, [params])
 
-  const updateAtt = async (evId, member, field, value) => {
-    const ev = data.events.find(e=>e.id===evId)
-    if (!ev || saving) return
+  const updateAtt = (evId, member, field, value) => {
+    const ev = data.events.find(e=>e.id===evId); if (!ev) return
     const oldAtt = ev.attendance?.[member] || { plan:null, actual:null, reason:null }
     const newAtt = { ...oldAtt, [field]: value }
     const nd = { ...data, events: data.events.map(e=>e.id!==evId?e:{...e,attendance:{...e.attendance,[member]:newAtt}}) }
-    setData(nd); setSaving(true)
-    try {
-      await saveData(scriptUrl, nd, mkLog({ by:member, type:'member', eventDate:ev.date, eventName:ev.name, member, before:String(oldAtt[field]||'未入力'), after:String(value||'未入力') }))
-    } catch { setData(data) }
-    finally { setSaving(false) }
+    setData(nd)
+    latestData.current = nd
+
+    // Debounce: save 1 second after last tap
+    const key = `${evId}_${member}_${field}`
+    const beforeLabel = String(oldAtt[field]||'未入力')
+    const afterLabel  = String(value||'未入力')
+    const evSnap = { date:ev.date, name:ev.name }
+    if (timerRef.current[key]) clearTimeout(timerRef.current[key])
+    setSaving(true)
+    timerRef.current[key] = setTimeout(async () => {
+      try {
+        await saveData(scriptUrl, latestData.current,
+          mkLog({ by:member, type:'member', eventDate:evSnap.date, eventName:evSnap.name, member, before:beforeLabel, after:afterLabel }))
+      } catch {}
+      delete timerRef.current[key]
+      if (Object.keys(timerRef.current).length === 0) setSaving(false)
+    }, 1000)
   }
 
   const saveReason = async (evId, member, reason) => {
@@ -128,10 +142,16 @@ export default function MemberPage() {
   const sortedEvs = [...data.events].sort((a,b)=>b.date.localeCompare(a.date))
   const filteredEvs = activeTag ? sortedEvs.filter(e=>e.tags?.includes(activeTag)) : sortedEvs
   const getStats = m => {
-    let p=0,l=0,ab=0,un=0
-    data.events.forEach(ev=>{ const s=ev.attendance?.[m]?.actual||null; if(s==='present')p++; else if(s==='late')l++; else if(s==='absent')ab++; else un++ })
-    const rec=data.events.length-un
-    return { present:p, late:l, absent:ab, rate:rec>0?Math.round(((p+l)/rec)*100):null }
+    let p=0, l=0, ab=0, ap=0, lp=0
+    data.events.forEach(ev => {
+      const att = ev.attendance?.[m] || {}
+      const actual = typeof att==='string' ? att : (att.actual ?? null)
+      const plan   = typeof att==='string' ? null : (att.plan   ?? null)
+      if (actual==='present') p++; else if (actual==='late') l++; else if (actual==='absent') ab++
+      if (plan==='attending') ap++; else if (plan==='late') lp++
+    })
+    const denom = ap + lp   // 出席予定 + 遅刻予定 が分母
+    return { present:p, late:l, absent:ab, denom, rate: denom>0 ? Math.round(((p+l)/denom)*100) : null }
   }
 
   if (loading) return <div style={{ padding:'3rem', textAlign:'center', color:'var(--color-text-secondary)', fontFamily:'var(--font-sans)' }}><i className="ti ti-refresh" style={{ fontSize:28 }}></i><p style={{ marginTop:8 }}>読み込み中...</p></div>
@@ -202,7 +222,7 @@ export default function MemberPage() {
                 {(()=>{
                   const st=getStats(selMember)
                   const rc=st.rate==null?'var(--color-text-tertiary)':st.rate>=80?'var(--color-text-success)':st.rate>=60?'var(--color-text-warning)':'var(--color-text-danger)'
-                  return <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>実績出席率 <strong style={{ color:rc }}>{st.rate==null?'－':`${st.rate}%`}</strong>　欠席 {st.absent}回</p>
+                  return <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>実績出席率 <strong style={{ color:rc }}>{st.rate==null?'－（予定未入力）':`${st.rate}%`}</strong>　欠席実績 {st.absent}回</p>
                 })()}
               </div>
             </div>
@@ -225,7 +245,7 @@ export default function MemberPage() {
               const statusMap = isUpcoming?PLAN_STATUS:ACTUAL_STATUS
               const statusOrder = isUpcoming?PLAN_ORDER:ACTUAL_ORDER
               const s = statusMap[curStatus]||statusMap[null]
-              const showReason = curStatus==='absent'
+              const showReason = true  // always show reason/memo field
 
               return (
                 <Card key={ev.id} style={{ marginBottom:10, padding:14 }}>

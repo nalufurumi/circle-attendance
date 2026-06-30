@@ -860,33 +860,6 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               </div>
             </Card>
 
-            {/* Member input style */}
-            <Card style={{ padding: 14, marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
-                <i className="ti ti-adjustments" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
-                <div>
-                  <p style={{ fontWeight: 500, margin: 0 }}>メンバーの出欠入力方式</p>
-                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>メンバーページでの出欠状況の入力方法を選べます</p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {[
-                  { id: 'button',   icon: 'ti-hand-click', label: 'ボタン', desc: 'タップで順に切替' },
-                  { id: 'dropdown', icon: 'ti-list',        label: 'プルダウン', desc: '選択式' },
-                ].map(opt => {
-                  const active = (data.inputStyle || 'button') === opt.id
-                  return (
-                    <button key={opt.id} onClick={() => update({ ...data, inputStyle: opt.id }, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.inputStyle || 'button', after: `入力方式: ${opt.label}` }))}
-                      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '12px 8px', borderRadius: 'var(--border-radius-md)', border: `1.5px solid ${active ? AC : 'var(--color-border-secondary)'}`, background: active ? ACB : 'var(--color-background-primary)', cursor: 'pointer' }}>
-                      <i className={`ti ${opt.icon}`} style={{ fontSize: 20, color: active ? ACD : 'var(--color-text-secondary)' }}></i>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: active ? ACD : 'var(--color-text-primary)' }}>{opt.label}</span>
-                      <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{opt.desc}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </Card>
-
             {/* Display name */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>

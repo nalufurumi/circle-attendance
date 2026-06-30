@@ -290,25 +290,16 @@ export default function MemberPage() {
                       )}
 
                       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:4 }}>
-                        {data.inputStyle === 'dropdown' ? (
-                          <select
-                            disabled={locked}
-                            value={curStatus ?? '__null__'}
-                            onChange={e => { if (locked) return; const v = e.target.value === '__null__' ? null : e.target.value; updateAtt(ev.id, selMember, field, v) }}
-                            style={{ padding: '7px 14px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', color: s.text, fontSize: 14, fontWeight: 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.7 : 1, minWidth: 140 }}
-                          >
-                            {statusOrder.map(st => (
-                              <option key={String(st)} value={st ?? '__null__'}>{statusMap[st]?.icon} {statusMap[st]?.label}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <button
-                            disabled={locked}
-                            onClick={()=>{ if (locked) return; const ni=(statusOrder.indexOf(curStatus)+1)%statusOrder.length; updateAtt(ev.id,selMember,field,statusOrder[ni]) }}
-                            style={{ padding:'7px 18px', background:s.bg, border:`0.5px solid ${s.border}`, borderRadius:'var(--border-radius-md)', cursor: locked ? 'not-allowed' : 'pointer', color:s.text, fontSize:14, fontWeight:500, display:'flex', alignItems:'center', gap:6, opacity: locked ? 0.7 : 1 }}>
-                            <span style={{ fontSize:16 }}>{s.icon}</span><span>{s.label}</span>
-                          </button>
-                        )}
+                        <select
+                          disabled={locked}
+                          value={curStatus ?? '__null__'}
+                          onChange={e => { if (locked) return; const v = e.target.value === '__null__' ? null : e.target.value; updateAtt(ev.id, selMember, field, v) }}
+                          style={{ padding: '7px 14px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', color: s.text, fontSize: 14, fontWeight: 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.7 : 1, minWidth: 150 }}
+                        >
+                          {statusOrder.map(st => (
+                            <option key={String(st)} value={st ?? '__null__'}>{statusMap[st]?.icon} {statusMap[st]?.label}</option>
+                          ))}
+                        </select>
                       </div>
 
                       {locked && (
@@ -335,7 +326,7 @@ export default function MemberPage() {
                 </Card>
               )
             })}
-            <p style={{ fontSize:11, color:'var(--color-text-tertiary)', textAlign:'center', marginTop:12 }}>ボタンをタップして状況を切り替え</p>
+            <p style={{ fontSize:11, color:'var(--color-text-tertiary)', textAlign:'center', marginTop:12 }}>プルダウンから状況を選択してください</p>
           </>
         )}
 

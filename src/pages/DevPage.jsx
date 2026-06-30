@@ -159,6 +159,7 @@ export default function DevPage() {
   }
 
   useEffect(() => { if (authed) loadLS() }, [authed])
+  useEffect(() => { if (authed) setErrors(getErrors()) }, [authed])
 
   // ── Diagnostics ──
   const runDiag = async () => {
@@ -166,21 +167,46 @@ export default function DevPage() {
     setDiagLoading(true); setDiagResult(null)
     const t0 = Date.now()
     try {
-      const data = await loadData(scriptUrl)
-      const postT0 = Date.now()
-      // Test POST (harmless log write)
+      // Raw fetch first (15s) so we can distinguish timeout vs CORS vs script error
+      const res = await fetch(scriptUrl + '?action=get', { signal: AbortSignal.timeout(15000) })
       const ms = Date.now() - t0
-      const postMs = Date.now() - postT0
+      if (!res.ok) {
+        setDiagResult({ ok: false, error: `HTTPエラー ${res.status} ${res.statusText}`, getMs: ms, hint: 'http' })
+        setDiagLoading(false); return
+      }
+      let data
+      try { data = await res.json() }
+      catch {
+        setDiagResult({ ok: false, error: 'レスポンスがJSONではありません（Apps Script側でエラーが発生している可能性）', getMs: ms, hint: 'json' })
+        setDiagLoading(false); return
+      }
+      const migrated = migrate(data)
+      const today = new Date().toISOString().slice(0, 10)
+      const heldEvents = (migrated.events || []).filter(e => e.date <= today).length
+      const upcomingEvents = (migrated.events || []).length - heldEvents
+      const pendingCount = (migrated.pendingMembers || []).length
+      const noticeSet = !!(migrated.notice || '').trim()
       setDiagResult({
         ok: true, getMs: ms,
-        members: data.members?.length ?? 0,
-        events:  data.events?.length  ?? 0,
+        members: migrated.members?.length ?? 0,
+        events:  migrated.events?.length  ?? 0,
+        heldEvents, upcomingEvents, pendingCount, noticeSet,
         version: data.dataVersion || 1,
         needsMigration: (data.dataVersion || 1) < CURRENT_DATA_VERSION,
-        circleName: data.circleName || '（未設定）',
+        circleName: migrated.circleName || '（未設定）',
+        accentColor: migrated.accentColor || 'rose',
       })
     } catch (e) {
-      setDiagResult({ ok: false, error: e.message, getMs: Date.now() - t0 })
+      const ms = Date.now() - t0
+      let hint = 'unknown', friendly = e.message
+      if (e.name === 'TimeoutError' || /abort/i.test(e.message)) {
+        hint = 'timeout'
+        friendly = `応答なし（${Math.round(ms/1000)}秒でタイムアウト）。Apps Script側で処理が固まっている、未デプロイ、またはデプロイのアクセス権限が「全員」になっていない可能性があります。`
+      } else if (/Failed to fetch|NetworkError/i.test(e.message)) {
+        hint = 'network'
+        friendly = 'ネットワークエラー、またはCORSでブロックされています。Apps ScriptのデプロイでURLが正しいか、アクセス権限が「全員」になっているか確認してください。'
+      }
+      setDiagResult({ ok: false, error: friendly, raw: e.message, getMs: ms, hint })
     }
     setDiagLoading(false)
   }
@@ -255,7 +281,7 @@ export default function DevPage() {
   // ── Render: Dashboard ──
   const TABS = [
     { id: 'diag',   label: '診断' },
-    { id: 'errors', label: '⚠ エラー' },
+    { id: 'errors', label: errors.length > 0 ? `⚠ エラー (${errors.length})` : '⚠ エラー' },
     { id: 'data',   label: 'データ' },
     { id: 'logs',   label: 'ログ' },
     { id: 'bugs',   label: '🐛 バグ報告' },
@@ -299,6 +325,12 @@ export default function DevPage() {
         {/* ── DIAGNOSTICS ── */}
         {tab === 'diag' && (
           <div>
+            {errors.length > 0 && (
+              <button onClick={() => setTab('errors')} style={{ display: 'block', width: '100%', textAlign: 'left', background: '#1a0a0a', border: `1px solid ${T.redBord}`, borderRadius: 6, padding: '10px 12px', marginBottom: 16, cursor: 'pointer' }}>
+                <span style={{ color: T.red, fontSize: 12, fontWeight: 600 }}>⚠ このブラウザで {errors.length} 件のエラーが記録されています</span>
+                <span style={{ color: T.textDim, fontSize: 11, marginLeft: 8 }}>タップして確認 →</span>
+              </button>
+            )}
             <Label>接続テスト</Label>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <button onClick={runDiag} disabled={diagLoading || !scriptUrl} style={{ padding: '6px 16px', background: T.border, border: `1px solid ${T.border2}`, color: T.textMuted, cursor: scriptUrl ? 'pointer' : 'default', borderRadius: 5, fontSize: 12, opacity: !scriptUrl ? 0.5 : 1 }}>
@@ -309,9 +341,12 @@ export default function DevPage() {
 
             {diagResult?.ok && (
               <div style={{ background: T.greenBg, border: `1px solid ${T.greenBord}`, borderRadius: 6, padding: 12, marginBottom: 16 }}>
+                <Row k="団体名"       v={diagResult.circleName} />
                 <Row k="members"       v={`${diagResult.members}人`} />
-                <Row k="events"        v={`${diagResult.events}件`} />
-                <Row k="circleName"    v={diagResult.circleName} />
+                <Row k="events"        v={`${diagResult.events}件（開催済 ${diagResult.heldEvents} / 開催前 ${diagResult.upcomingEvents}）`} />
+                <Row k="pendingMembers" v={`${diagResult.pendingCount}件`} vStyle={diagResult.pendingCount > 0 ? { color: T.amber } : undefined} />
+                <Row k="notice"        v={diagResult.noticeSet ? '設定あり' : '（未設定）'} />
+                <Row k="accentColor"   v={diagResult.accentColor} />
                 <Row k="dataVersion"   v={`v${diagResult.version}`} vStyle={{ color: diagResult.needsMigration ? T.amber : T.green }} />
                 {diagResult.needsMigration && (
                   <p style={{ color: T.amber, fontSize: 11, marginTop: 8 }}>
@@ -323,6 +358,21 @@ export default function DevPage() {
             {diagResult?.ok === false && (
               <div style={{ background: T.redBg, border: `1px solid ${T.redBord}`, borderRadius: 6, padding: 12, marginBottom: 16 }}>
                 <Row k="error" v={diagResult.error} vStyle={{ color: T.red }} />
+                {diagResult.raw && diagResult.raw !== diagResult.error && <Row k="raw" v={diagResult.raw} vStyle={{ color: T.textDim, fontSize: 10 }} />}
+                {diagResult.hint === 'timeout' && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.redBord}` }}>
+                    <p style={{ color: T.amber, fontSize: 11, marginBottom: 6 }}>考えられる原因と対処：</p>
+                    <ol style={{ color: T.textDim, fontSize: 11, paddingLeft: 16, lineHeight: 1.9, margin: 0 }}>
+                      <li>Apps Scriptが未デプロイ、または古いバージョンのまま → 設定タブのコードを再デプロイ</li>
+                      <li>デプロイのアクセス権限が「全員」になっていない → デプロイを管理 → 編集 → アクセスできるユーザー: 全員</li>
+                      <li>Googleスプレッドシート側でエラー（シート構造の破損など）が起きている → スプレッドシートを直接開いて確認</li>
+                      <li>単純なネットワーク遅延 → もう一度「テスト実行」</li>
+                    </ol>
+                  </div>
+                )}
+                {diagResult.hint === 'network' && (
+                  <p style={{ color: T.amber, fontSize: 11, marginTop: 8 }}>Script URLが正しいか、Apps Scriptのデプロイ設定（アクセス: 全員）を確認してください。</p>
+                )}
               </div>
             )}
 

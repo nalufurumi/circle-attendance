@@ -3,7 +3,7 @@ import { loadData, saveData, getLogs, migrate, CURRENT_DATA_VERSION } from '../l
 import { APPS_SCRIPT } from '../lib/constants.js'
 import { getErrors, clearErrors } from '../lib/errorLog.js'
 
-const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || 'circledev'
+const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || '0000'
 const BUG_URL      = import.meta.env.VITE_BUG_REPORT_URL || ''
 const APP_VER      = '2.2.0'
 const CONTACT      = 'nalufurumi@gmail.com'
@@ -566,7 +566,7 @@ export default function DevPage() {
             <Row k="prod_url"     v={<a href={PROD_URL} style={{ color: T.blue }}>{PROD_URL}</a>} />
             <Row k="demo_url"     v={<a href="/demo" style={{ color: T.blue }}>/demo（営業用・ログイン不要の体験版）</a>} />
             <Row k="report_url"   v={<a href="/report" style={{ color: T.blue }}>/report（バグ報告）</a>} />
-            <Row k="dev_password" v={DEV_PW === 'circledev' ? '(default — set VITE_DEV_PASSWORD in Vercel env)' : '(custom)'} />
+            <Row k="dev_password" v={DEV_PW === '0000' ? '(default: 0000 — VITE_DEV_PASSWORD で変更可)' : '(custom)'} />
 
             <div style={{ marginTop: 24 }}>
               <Label>データスキーマ v{CURRENT_DATA_VERSION}</Label>

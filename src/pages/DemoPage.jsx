@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   COLORS, getColor, PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
-  EVENT_TYPES, applyAccent, todayStr,
+  EVENT_TYPES, applyAccent, todayStr, computeStats,
 } from '../lib/constants.js'
 
 const AC = 'var(--accent)', ACB = 'var(--accent-bg)', ACD = 'var(--accent-dark)'
@@ -56,10 +56,17 @@ export default function DemoPage() {
   const [expandedEv, setExpandedEv] = useState(null)
   const [evMode, setEvMode] = useState({})
   const [activeTag, setActiveTag] = useState(null)
+  const [logs, setLogs] = useState([])
+  const [showAddEv, setShowAddEv] = useState(false)
+  const [newEv, setNewEv] = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+  const [tagInput, setTagInput] = useState('')
+  const [notice, setNotice] = useState(seedData().notice)
   const today = todayStr()
 
   const allTags = [...new Set([...(data.globalTags || []), ...data.events.flatMap(e => e.tags || [])])]
   const sortedEvs = [...data.events].sort((a, b) => b.date.localeCompare(a.date))
+
+  const addLog = (entry) => setLogs(l => [{ at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }), ...entry }, ...l].slice(0, 50))
 
   // In-memory cycle (no save)
   const cycle = (evId, member, field) => {
@@ -71,20 +78,25 @@ export default function DemoPage() {
         const att = e.attendance[member] || { plan: null, actual: null, reason: null }
         const cur = att[field] ?? null
         const nxt = order[(order.indexOf(cur) + 1) % order.length]
+        const sm = field === 'plan' ? PLAN_STATUS : ACTUAL_STATUS
+        addLog({ by: view === 'admin' ? '管理者' : member, type: view === 'admin' ? 'admin' : 'member', eventName: e.name, member, before: sm[cur]?.label || '未入力', after: sm[nxt]?.label || '未入力' })
         return { ...e, attendance: { ...e.attendance, [member]: { ...att, [field]: nxt } } }
       }),
     }))
   }
 
+  const addEvent = () => {
+    if (!newEv.date || !newEv.name.trim()) return
+    const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo, attendance: {} }
+    setData(d => ({ ...d, events: [...d.events, ev], globalTags: [...new Set([...(d.globalTags || []), ...newEv.tags])] }))
+    addLog({ by: '管理者', type: 'admin', eventName: ev.name, member: '', before: '（未作成）', after: 'イベント追加' })
+    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+    setTagInput(''); setShowAddEv(false); setExpandedEv(ev.id)
+  }
+
   const getStats = m => {
-    let p = 0, l = 0, ab = 0, ap = 0, lp = 0
-    data.events.forEach(ev => {
-      const att = ev.attendance[m] || {}
-      if (att.actual === 'present') p++; else if (att.actual === 'late') l++; else if (att.actual === 'absent') ab++
-      if (att.plan === 'attending') ap++; else if (att.plan === 'late') lp++
-    })
-    const denom = ap + lp
-    return { present: p, late: l, absent: ab, denom, rate: denom > 0 ? Math.round(((p + l) / denom) * 100) : null }
+    const s = computeStats(data.events, m)
+    return { present: s.present, late: s.late, absent: s.absent, denom: s.heldDenom, rate: s.actualRate, predicted: s.predictedRate }
   }
 
   return (
@@ -184,7 +196,7 @@ export default function DemoPage() {
       {view === 'admin' && (
         <>
           <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', position: 'sticky', top: 48, zIndex: 9, display: 'flex' }}>
-            {[{ id: 'events', icon: 'ti-calendar', label: 'イベント' }, { id: 'members', icon: 'ti-users', label: 'メンバー' }, { id: 'stats', icon: 'ti-chart-bar', label: '統計' }].map(t => (
+            {[{ id: 'events', icon: 'ti-calendar', label: 'イベント' }, { id: 'members', icon: 'ti-users', label: 'メンバー' }, { id: 'stats', icon: 'ti-chart-bar', label: '統計' }, { id: 'log', icon: 'ti-history', label: 'ログ' }, { id: 'settings', icon: 'ti-settings', label: '設定' }].map(t => (
               <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0 10px', border: 'none', borderBottom: adminTab === t.id ? `2px solid ${AC}` : '2px solid transparent', background: 'transparent', color: adminTab === t.id ? AC : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: adminTab === t.id ? 500 : 400 }}>
                 <i className={`ti ${t.icon}`} style={{ fontSize: 18 }}></i>{t.label}
               </button>
@@ -192,6 +204,47 @@ export default function DemoPage() {
           </div>
 
           <div style={{ padding: 16 }}>
+            {adminTab === 'events' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ fontWeight: 500 }}>イベント管理</span>
+                  <button onClick={() => setShowAddEv(!showAddEv)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                    <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
+                  </button>
+                </div>
+                {showAddEv && (
+                  <Card style={{ padding: 14, marginBottom: 12 }}>
+                    <p style={{ fontWeight: 500, marginBottom: 10 }}>新しいイベント</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>日付</p><input type="date" value={newEv.date} onChange={e => setNewEv({ ...newEv, date: e.target.value })} /></div>
+                      <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>種別</p><select value={newEv.type} onChange={e => setNewEv({ ...newEv, type: e.target.value })}>{EVENT_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                      <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>開始（任意）</p><input type="time" value={newEv.timeStart} onChange={e => setNewEv({ ...newEv, timeStart: e.target.value })} /></div>
+                      <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>終了（任意）</p><input type="time" value={newEv.timeEnd} onChange={e => setNewEv({ ...newEv, timeEnd: e.target.value })} /></div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>イベント名</p><input type="text" placeholder="例：6月定期練習" value={newEv.name} onChange={e => setNewEv({ ...newEv, name: e.target.value })} /></div>
+                    <div style={{ marginBottom: 8 }}>
+                      <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>タグ</p>
+                      {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>{allTags.map(tag => { const sel = newEv.tags.includes(tag); return <button key={tag} onClick={() => setNewEv(p => ({ ...p, tags: sel ? p.tags.filter(t => t !== tag) : [...p.tags, tag] }))} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, border: 'none', cursor: 'pointer', background: sel ? AC : 'var(--color-background-secondary)', color: sel ? '#fff' : 'var(--color-text-secondary)' }}>#{tag}</button> })}</div>}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input type="text" placeholder="新しいタグを入力して「追加」" value={tagInput} onChange={e => setTagInput(e.target.value)} style={{ flex: 1 }} />
+                        <button onClick={() => { const t = tagInput.trim().replace(/^#/, ''); if (t) setNewEv(p => ({ ...p, tags: [...p.tags.filter(x => x !== t), t] })); setTagInput('') }} style={{ padding: '0 14px', background: 'var(--color-background-secondary)', border: 'none', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 13 }}>追加</button>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 8 }}><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>メモ（メンバーに表示）</p><textarea placeholder="例：衣装持参でお願いします" value={newEv.memo} onChange={e => setNewEv({ ...newEv, memo: e.target.value })} style={{ minHeight: 50 }} /></div>
+                    <div style={{ marginBottom: 12 }}>
+                      <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>ラベルカラー</p>
+                      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{COLORS.map(c => <button key={c.id} onClick={() => setNewEv({ ...newEv, color: c.id })} style={{ width: 24, height: 24, borderRadius: '50%', background: c.hex, border: 'none', cursor: 'pointer', outline: newEv.color === c.id ? `3px solid ${c.hex}` : 'none', outlineOffset: -5 }} />)}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={addEvent} style={{ flex: 1, padding: '9px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>追加する</button>
+                      <button onClick={() => setShowAddEv(false)} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+                    </div>
+                  </Card>
+                )}
+              </>
+            )}
             {adminTab === 'events' && sortedEvs.map(ev => {
               const isOpen = expandedEv === ev.id
               const mode = evMode[ev.id] || (ev.date > today ? 'plan' : 'actual')
@@ -263,6 +316,77 @@ export default function DemoPage() {
                 </Card>
               )
             })}
+
+            {/* LOG tab */}
+            {adminTab === 'log' && (
+              <div>
+                <p style={{ fontWeight: 500, marginBottom: 4 }}>変更ログ</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14 }}>誰がいつ出欠を変更したか記録されます（体験版はこのセッションのみ）</p>
+                {logs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}>
+                    <i className="ti ti-history" style={{ fontSize: 36 }}></i>
+                    <p style={{ marginTop: 8 }}>まだ記録がありません</p>
+                    <p style={{ fontSize: 12, marginTop: 4 }}>出欠ボタンをタップすると記録されます</p>
+                  </div>
+                ) : logs.map((log, i) => (
+                  <Card key={i} style={{ padding: '10px 12px', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: log.type === 'admin' ? ACB : 'var(--color-background-secondary)', color: log.type === 'admin' ? ACD : 'var(--color-text-secondary)' }}>{log.type === 'admin' ? '管理者' : 'メンバー'}</span>
+                        <span style={{ fontSize: 13, marginLeft: 6 }}>{log.member}</span>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>{log.eventName}：{log.before} → <strong style={{ color: 'var(--color-text-primary)' }}>{log.after}</strong></p>
+                      </div>
+                      <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>{String(log.at).slice(-8)}</span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* SETTINGS tab */}
+            {adminTab === 'settings' && (
+              <div>
+                <Card style={{ padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                    <i className="ti ti-sparkles" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                    <p style={{ fontWeight: 500, margin: 0 }}>団体名</p>
+                  </div>
+                  <input type="text" value={data.circleName} onChange={e => setData({ ...data, circleName: e.target.value })} />
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 6 }}>メンバー側の画面タイトルに表示されます</p>
+                </Card>
+
+                <Card style={{ padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <i className="ti ti-pin" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                    <div><p style={{ fontWeight: 500, margin: 0 }}>お知らせ（ピン留め）</p><p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>メンバーページの上部に表示</p></div>
+                  </div>
+                  <textarea value={notice} onChange={e => setNotice(e.target.value)} style={{ minHeight: 70, marginBottom: 8 }} />
+                  <button onClick={() => setData({ ...data, notice })} style={{ width: '100%', padding: '7px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, fontSize: 13 }}>保存する</button>
+                </Card>
+
+                <Card style={{ padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                    <i className="ti ti-palette" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                    <p style={{ fontWeight: 500, margin: 0 }}>テーマカラー</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[['rose', '#E8527A'], ['violet', '#7C5BDE'], ['blue', '#3B8FE8'], ['teal', '#0F9B8E'], ['green', '#2EB67D'], ['orange', '#F0793B'], ['amber', '#D97706'], ['red', '#E53935']].map(([id, hex]) => (
+                      <button key={id} onClick={() => { applyAccent(id); setData({ ...data, accentColor: id }) }} style={{ width: 36, height: 36, borderRadius: '50%', background: hex, border: 'none', cursor: 'pointer', outline: data.accentColor === id ? `3px solid ${hex}` : 'none', outlineOffset: 3 }} />
+                    ))}
+                  </div>
+                </Card>
+
+                <Card style={{ padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <i className="ti ti-tags" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                    <p style={{ fontWeight: 500, margin: 0 }}>タグ管理</p>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {allTags.map(tag => <span key={tag} style={{ padding: '3px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12 }}>#{tag}</span>)}
+                  </div>
+                </Card>
+              </div>
+            )}
           </div>
         </>
       )}

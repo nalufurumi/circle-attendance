@@ -4,7 +4,7 @@ import {
   CLIENT_ID, COLORS, getColor,
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   EVENT_TYPES, ACCENT_PRESETS, applyAccent, isValidHex, GR, GRB, GRD,
-  todayStr, DEFAULT_DATA, APPS_SCRIPT,
+  todayStr, DEFAULT_DATA, APPS_SCRIPT, computeStats, isEventStarted,
 } from '../lib/constants.js'
 
 // CSS variable shortcuts — resolved dynamically via applyAccent()
@@ -296,7 +296,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
 
   const saveCircleName = () => {
     const nd = { ...data, circleName }
-    update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.circleName || '（未設定）', after: `サークル名: ${circleName}` }))
+    update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.circleName || '（未設定）', after: `団体名: ${circleName}` }))
   }
   const saveNotice = () => {
     update({ ...data, notice }, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.notice||'（未設定）', after: `お知らせ更新` }))
@@ -308,18 +308,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
 
   const getStats = () => data.members.map(member => {
-    let p = 0, l = 0, ab = 0, ap = 0, lp = 0
-    data.events.forEach(ev => {
-      const att = ev.attendance?.[member] || {}
-      const actual = typeof att === 'string' ? att : (att.actual ?? null)
-      const plan   = typeof att === 'string' ? null : (att.plan   ?? null)
-      if (actual === 'present') p++; else if (actual === 'late') l++; else if (actual === 'absent') ab++
-      if (plan === 'attending') ap++; else if (plan === 'late') lp++
-    })
-    const denom = ap + lp   // 出席予定 + 遅刻予定 が分母
-    const rate  = denom > 0 ? Math.round(((p + l) / denom) * 100) : null
-    return { member, present: p, late: l, absent: ab, attendingPlan: ap, latePlan: lp, denom, rate }
-  }).sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1))
+    const s = computeStats(data.events, member)
+    // keep `rate` as the actual rate for sorting/highlight, plus expose both
+    return { ...s, rate: s.actualRate }
+  }).sort((a, b) => (b.actualRate ?? -1) - (a.actualRate ?? -1))
 
   const exportCSV = () => {
     const evs = [...data.events].sort((a, b) => a.date.localeCompare(b.date))
@@ -450,8 +442,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <input type="text" placeholder="新しいタグを入力" value={tagInput} onChange={e => setTagInput(e.target.value)}
-                      onKeyDown={e => { if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) { e.preventDefault(); const t = tagInput.trim().replace(/^#/, ''); if (t) setNewEv(p => ({ ...p, tags: [...(p.tags || []).filter(x => x !== t), t] })); setTagInput('') } }}
+                    <input type="text" placeholder="新しいタグを入力して「追加」" value={tagInput} onChange={e => setTagInput(e.target.value)}
                       style={{ flex: 1 }} />
                     <GhostBtn onClick={() => { const t = tagInput.trim().replace(/^#/, ''); if (t) setNewEv(p => ({ ...p, tags: [...(p.tags || []).filter(x => x !== t), t] })); setTagInput('') }}>追加</GhostBtn>
                   </div>
@@ -648,11 +639,11 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <i className="ti ti-download" style={{ fontSize: 13 }}></i>CSV
               </button>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（当日参加＋遅刻）÷（参加予定＋遅刻予定）</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（開催済の参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）<br />※ 開催前のイベントは実績にカウントされません</p>
             {/* Alert threshold */}
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'8px 12px', background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-md)' }}>
               <i className="ti ti-bell" style={{ fontSize:14, color:'var(--color-text-secondary)' }}></i>
-              <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>出席率アラート</span>
+              <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>実績出席率アラート</span>
               <input type="number" min="0" max="100" placeholder="例：60" value={threshold}
                 onChange={e=>setThreshold(e.target.value)}
                 onBlur={e=>saveThreshold(e.target.value)}
@@ -662,23 +653,32 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             {getStats().length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-chart-bar" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>データがありません</p></div>}
             {getStats().map((s, rank) => {
               const thresh = threshold !== '' ? Number(threshold) : null
-              const belowAlert = thresh !== null && s.rate !== null && s.rate < thresh
-              const rc = s.rate == null ? 'var(--color-text-tertiary)' : s.rate >= 80 ? 'var(--color-text-success)' : s.rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
+              const belowAlert = thresh !== null && s.actualRate !== null && s.actualRate < thresh
+              const rc = s.actualRate == null ? 'var(--color-text-tertiary)' : s.actualRate >= 80 ? 'var(--color-text-success)' : s.actualRate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
               return (
-                <Card key={s.member} style={{ padding: 14, marginBottom: 10 }}>
+                <Card key={s.member} style={{ padding: 14, marginBottom: 10, border: belowAlert ? '1.5px solid var(--color-text-danger)' : undefined }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', width: 20 }}>#{rank + 1}</span>
                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{s.member.slice(0, 1)}</div>
                       <span style={{ fontWeight: 500 }}>{s.member}</span>{belowAlert&&<span style={{ fontSize:11, padding:'1px 7px', background:'var(--color-background-danger)', color:'var(--color-text-danger)', borderRadius:999, fontWeight:500 }}>アラート</span>}
                     </div>
-                    <span style={{ fontSize: 22, fontWeight: 500, color: rc }}>{s.rate == null ? '－' : `${s.rate}%`}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 22, fontWeight: 500, color: rc }}>{s.actualRate == null ? '－' : `${s.actualRate}%`}</span>
+                      <p style={{ fontSize: 10, color: 'var(--color-text-tertiary)', margin: 0 }}>実績</p>
+                    </div>
                   </div>
-                  <div style={{ height: 3, background: 'var(--color-background-secondary)', borderRadius: 999, marginBottom: 10, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${s.rate ?? 0}%`, background: rc, borderRadius: 999 }} />
+                  <div style={{ height: 3, background: 'var(--color-background-secondary)', borderRadius: 999, marginBottom: 8, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${s.actualRate ?? 0}%`, background: rc, borderRadius: 999 }} />
+                  </div>
+                  {/* Predicted rate row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                    <i className="ti ti-chart-dots" style={{ fontSize: 12 }}></i>
+                    予測出席率（予定込み）: <strong style={{ color: 'var(--color-text-primary)' }}>{s.predictedRate == null ? '－' : `${s.predictedRate}%`}</strong>
+                    <span style={{ color: 'var(--color-text-tertiary)' }}>（予定総数 {s.planTotal}回）</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5 }}>
-                    {[{ l: '実績参加', v: s.present, bg: 'var(--color-background-success)', c: 'var(--color-text-success)' }, { l: '実績遅刻', v: s.late, bg: 'var(--color-background-warning)', c: 'var(--color-text-warning)' }, { l: '実績欠席', v: s.absent, bg: 'var(--color-background-danger)', c: 'var(--color-text-danger)' }, { l: '予定分母', v: s.denom ?? 0, bg: 'var(--color-background-secondary)', c: 'var(--color-text-tertiary)' }].map(it => (
+                    {[{ l: '実績参加', v: s.present, bg: 'var(--color-background-success)', c: 'var(--color-text-success)' }, { l: '実績遅刻', v: s.late, bg: 'var(--color-background-warning)', c: 'var(--color-text-warning)' }, { l: '実績欠席', v: s.absent, bg: 'var(--color-background-danger)', c: 'var(--color-text-danger)' }, { l: '実績分母', v: s.heldDenom ?? 0, bg: 'var(--color-background-secondary)', c: 'var(--color-text-tertiary)' }].map(it => (
                       <div key={it.l} style={{ background: it.bg, borderRadius: 'var(--border-radius-md)', padding: '5px 4px', textAlign: 'center' }}>
                         <p style={{ fontSize: 15, fontWeight: 500, color: it.c, margin: 0 }}>{it.v}</p>
                         <p style={{ fontSize: 10, color: it.c, margin: 0 }}>{it.l}</p>
@@ -796,11 +796,11 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <p style={{ fontWeight: 500, marginBottom: 16 }}>設定</p>
 
-            {/* ★ Circle name FIRST ★ */}
+            {/* ★ Group name FIRST ★ */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
                 <i className="ti ti-sparkles" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
-                <p style={{ fontWeight: 500, margin: 0 }}>サークル名</p>
+                <p style={{ fontWeight: 500, margin: 0 }}>団体名</p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input type="text" placeholder="例：○○コピーダンスサークル" value={circleName} onChange={e => setCircleName(e.target.value)} style={{ flex: 1 }} />
@@ -848,8 +848,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 </div>
               )}
               <div style={{ display: 'flex', gap: 6 }}>
-                <input type="text" placeholder="新しいタグ（例：ダンス）" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && newTagInput.trim()) { const t = newTagInput.trim().replace(/^#/, ''); if (t && !availableTags.includes(t)) update({ ...data, globalTags: [...(data.globalTags || []), t] }); setNewTagInput('') } }}
+                <input type="text" placeholder="新しいタグを入力して「追加」" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
                   style={{ flex: 1 }} />
                 <button onClick={() => { const t = newTagInput.trim().replace(/^#/, ''); if (t && !availableTags.includes(t)) update({ ...data, globalTags: [...(data.globalTags || []), t] }); setNewTagInput('') }} style={{ padding: '0 16px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>追加</button>
               </div>
@@ -990,19 +989,6 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             </Card>
 
 
-
-            {/* Circle name */}
-            <Card style={{ padding: 14, marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
-                <i className="ti ti-sparkles" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
-                <p style={{ fontWeight: 500, margin: 0 }}>サークル名</p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="例：○○コピーダンスサークル" value={circleName} onChange={e => setCircleName(e.target.value)} style={{ flex: 1 }} />
-                <PrimaryBtn onClick={saveCircleName} color={GR} style={{ padding: '0 14px', whiteSpace: 'nowrap' }}>保存</PrimaryBtn>
-              </div>
-              <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 6 }}>メンバー側の画面タイトルに表示されます</p>
-            </Card>
 
             {/* Share URL */}
             <Card style={{ padding: 14, marginBottom: 12 }}>

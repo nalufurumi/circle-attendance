@@ -102,6 +102,58 @@ export const GR = '#1D9E75', GRB = '#EAF7F0', GRD = '#0A5040'
 export const todayStr = () => new Date().toISOString().slice(0, 10)
 export const nowStr   = () => new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
 
+// ── Event timing helpers ──────────────────────────────────────
+/** Returns a Date for the event's start (date + timeStart, or end-of-day if no time) */
+function eventStart(ev) {
+  const t = ev.timeStart && /^\d{2}:\d{2}$/.test(ev.timeStart) ? ev.timeStart : '23:59'
+  return new Date(`${ev.date}T${t}:00`)
+}
+
+/** True if the event has already started (past or now) — i.e. attendance is "actual" relevant */
+export function isEventStarted(ev, now = new Date()) {
+  return eventStart(ev) <= now
+}
+
+/** True if 24h have passed since the event started (member editing locked) */
+export function isEditLocked(ev, now = new Date()) {
+  return now.getTime() - eventStart(ev).getTime() > 24 * 60 * 60 * 1000
+}
+
+/**
+ * Compute attendance statistics for one member.
+ * - 実績出席率 (actualRate): 開催済みイベントのみ。(当日参加+遅刻)/(参加予定+遅刻予定 of held events)
+ * - 予測出席率 (predictedRate): 全イベントの予定ベース (参加予定+遅刻予定)/(予定が入っている全イベント)
+ */
+export function computeStats(events, member, now = new Date()) {
+  let p = 0, l = 0, ab = 0          // actual (held events)
+  let heldDenom = 0                  // 参加予定+遅刻予定 of held events
+  let planAttend = 0, planLate = 0, planAbsent = 0, planTotal = 0  // all events with a plan
+  events.forEach(ev => {
+    const raw = ev.attendance?.[member] || {}
+    const actual = typeof raw === 'string' ? raw : (raw.actual ?? null)
+    const plan   = typeof raw === 'string' ? null : (raw.plan ?? null)
+    const started = isEventStarted(ev, now)
+
+    // Predicted (all events that have a plan)
+    if (plan === 'attending') { planAttend++; planTotal++ }
+    else if (plan === 'late') { planLate++; planTotal++ }
+    else if (plan === 'absent') { planAbsent++; planTotal++ }
+
+    // Actual (only held events)
+    if (started) {
+      if (actual === 'present') p++; else if (actual === 'late') l++; else if (actual === 'absent') ab++
+      // denominator: events where the member intended to come (excludes 不参加予定)
+      if (plan === 'attending' || plan === 'late') heldDenom++
+    }
+  })
+  const actualRate    = heldDenom   > 0 ? Math.round(((p + l) / heldDenom) * 100) : null
+  const predictedRate = planTotal   > 0 ? Math.round(((planAttend + planLate) / planTotal) * 100) : null
+  return {
+    member, present: p, late: l, absent: ab, heldDenom, actualRate, predictedRate,
+    planAttend, planLate, planAbsent, planTotal,
+  }
+}
+
 export const DEFAULT_DATA = {
   members: [], events: [], circleName: '', accentColor: 'rose',
   notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], dataVersion: 3,

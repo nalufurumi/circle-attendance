@@ -4,6 +4,7 @@ import { loadData, saveData, mkLog } from '../lib/api.js'
 import {
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   getColor, applyAccent, DEFAULT_DATA, todayStr,
+  computeStats, isEditLocked,
 } from '../lib/constants.js'
 
 const AC  = 'var(--accent)'
@@ -159,16 +160,8 @@ export default function MemberPage() {
   const sortedEvs = [...data.events].sort((a,b)=>b.date.localeCompare(a.date))
   const filteredEvs = activeTag ? sortedEvs.filter(e=>e.tags?.includes(activeTag)) : sortedEvs
   const getStats = m => {
-    let p=0, l=0, ab=0, ap=0, lp=0
-    data.events.forEach(ev => {
-      const att = ev.attendance?.[m] || {}
-      const actual = typeof att==='string' ? att : (att.actual ?? null)
-      const plan   = typeof att==='string' ? null : (att.plan   ?? null)
-      if (actual==='present') p++; else if (actual==='late') l++; else if (actual==='absent') ab++
-      if (plan==='attending') ap++; else if (plan==='late') lp++
-    })
-    const denom = ap + lp   // 出席予定 + 遅刻予定 が分母
-    return { present:p, late:l, absent:ab, denom, rate: denom>0 ? Math.round(((p+l)/denom)*100) : null }
+    const s = computeStats(data.events, m)
+    return { present: s.present, late: s.late, absent: s.absent, rate: s.actualRate, predicted: s.predictedRate }
   }
 
   if (loading) return <div style={{ padding:'3rem', textAlign:'center', color:'var(--color-text-secondary)', fontFamily:'var(--font-sans)' }}><i className="ti ti-refresh" style={{ fontSize:28 }}></i><p style={{ marginTop:8 }}>読み込み中...</p></div>
@@ -239,7 +232,7 @@ export default function MemberPage() {
                 {(()=>{
                   const st=getStats(selMember)
                   const rc=st.rate==null?'var(--color-text-tertiary)':st.rate>=80?'var(--color-text-success)':st.rate>=60?'var(--color-text-warning)':'var(--color-text-danger)'
-                  return <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>実績出席率 <strong style={{ color:rc }}>{st.rate==null?'－（予定未入力）':`${st.rate}%`}</strong>　欠席実績 {st.absent}回</p>
+                  return <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>実績出席率 <strong style={{ color:rc }}>{st.rate==null?'－':`${st.rate}%`}</strong>{st.predicted!=null&&<span style={{ color:'var(--color-text-tertiary)' }}>　予測 {st.predicted}%</span>}　欠席 {st.absent}回</p>
                 })()}
               </div>
             </div>
@@ -263,19 +256,20 @@ export default function MemberPage() {
               const statusOrder = isUpcoming?PLAN_ORDER:ACTUAL_ORDER
               const s = statusMap[curStatus]||statusMap[null]
               const showReason = true  // always show reason/memo field
+              const locked = isEditLocked(ev)  // 開始から24h経過で編集不可
 
               return (
-                <Card key={ev.id} style={{ marginBottom:10, padding:14 }}>
+                <Card key={ev.id} style={{ marginBottom:10, padding:14, opacity: locked ? 0.85 : 1 }}>
                   <div style={{ display:'flex', gap:10 }}>
                     <div style={{ width:4, borderRadius:2, background:getColor(ev.color), flexShrink:0, alignSelf:'stretch', minHeight:36 }}/>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:4 }}>
                         <div style={{ minWidth:0 }}>
                           <p style={{ fontWeight:500, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ev.name}</p>
-                          <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>{ev.date} · {ev.type}</p>
+                          <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd?`〜${ev.timeEnd}`:'〜'}` : ''} · {ev.type}</p>
                         </div>
-                        <span style={{ fontSize:10, padding:'2px 7px', borderRadius:4, flexShrink:0, background:isUpcoming?ACB:'var(--color-background-secondary)', color:isUpcoming?ACD:'var(--color-text-tertiary)', fontWeight:500 }}>
-                          {isUpcoming?'事前入力':'当日記録'}
+                        <span style={{ fontSize:10, padding:'2px 7px', borderRadius:4, flexShrink:0, background: locked ? 'var(--color-background-secondary)' : (isUpcoming?ACB:'var(--color-background-secondary)'), color: locked ? 'var(--color-text-tertiary)' : (isUpcoming?ACD:'var(--color-text-tertiary)'), fontWeight:500 }}>
+                          {locked ? '🔒 締切' : (isUpcoming?'事前入力':'当日記録')}
                         </span>
                       </div>
 
@@ -293,13 +287,20 @@ export default function MemberPage() {
 
                       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:4 }}>
                         <button
-                          onClick={()=>{ const ni=(statusOrder.indexOf(curStatus)+1)%statusOrder.length; updateAtt(ev.id,selMember,field,statusOrder[ni]) }}
-                          style={{ padding:'7px 18px', background:s.bg, border:`0.5px solid ${s.border}`, borderRadius:'var(--border-radius-md)', cursor:'pointer', color:s.text, fontSize:14, fontWeight:500, display:'flex', alignItems:'center', gap:6 }}>
+                          disabled={locked}
+                          onClick={()=>{ if (locked) return; const ni=(statusOrder.indexOf(curStatus)+1)%statusOrder.length; updateAtt(ev.id,selMember,field,statusOrder[ni]) }}
+                          style={{ padding:'7px 18px', background:s.bg, border:`0.5px solid ${s.border}`, borderRadius:'var(--border-radius-md)', cursor: locked ? 'not-allowed' : 'pointer', color:s.text, fontSize:14, fontWeight:500, display:'flex', alignItems:'center', gap:6, opacity: locked ? 0.7 : 1 }}>
                           <span style={{ fontSize:16 }}>{s.icon}</span><span>{s.label}</span>
                         </button>
                       </div>
 
-                      {showReason&&(
+                      {locked && (
+                        <p style={{ fontSize:11, color:'var(--color-text-tertiary)', textAlign:'right', marginTop:6 }}>
+                          開始から24時間が経過したため編集できません
+                        </p>
+                      )}
+
+                      {showReason && !locked && (
                         <div style={{ marginTop:8, display:'flex', gap:6, alignItems:'center' }}>
                           <input type="text" placeholder="理由（任意）例：テスト・バイト"
                             value={reasonDraft[ev.id]??att.reason??''}
@@ -308,6 +309,9 @@ export default function MemberPage() {
                             style={{ flex:1, fontSize:13 }} />
                           {att.reason&&<span style={{ fontSize:11, color:'var(--color-text-tertiary)', flexShrink:0 }}>保存済</span>}
                         </div>
+                      )}
+                      {locked && att.reason && (
+                        <p style={{ marginTop:6, fontSize:12, color:'var(--color-text-secondary)' }}>理由: {att.reason}</p>
                       )}
                     </div>
                   </div>

@@ -4,7 +4,7 @@ import { APPS_SCRIPT } from '../lib/constants.js'
 
 const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || 'circledev'
 const BUG_URL      = import.meta.env.VITE_BUG_REPORT_URL || ''
-const APP_VER      = '2.1.0'
+const APP_VER      = '2.2.0'
 const CONTACT      = 'nalufurumi@gmail.com'
 const REPO_URL     = 'https://github.com/nalufurumi/circle-attendance'
 const PROD_URL     = 'https://circle-attendance-chi.vercel.app'
@@ -368,7 +368,7 @@ export default function DevPage() {
             <p style={{ color: T.textDim, fontSize: 11, marginBottom: 8 }}>⚠ スプレッドシートのデータを上書きします。必ずバックアップを取ってから実行してください。</p>
             <textarea
               value={importJson} onChange={e => setImportJson(e.target.value)}
-              placeholder='{"members":[], "events":[], "circleName":"", "dataVersion":2}'
+              placeholder='{"members":[], "events":[], "circleName":"", "dataVersion":3}'
               style={{ width: '100%', height: 100, background: '#060608', border: `1px solid ${T.border}`, color: '#f0f0f5', padding: 8, borderRadius: 5, ...mono, fontSize: 11, boxSizing: 'border-box', marginBottom: 8 }}
             />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -535,28 +535,31 @@ export default function DevPage() {
 {
   members:     string[],
   events:      Array<{
-    id:         string,
-    date:       string,       // "YYYY-MM-DD"
-    name:       string,
-    type:       string,       // 練習 | 本番 | イベント | MTG | その他
-    color:      string,       // pink | red | orange | green | blue | purple | teal | gray
-    attendance: Record<memberName, Status>
+    id, date, timeStart, timeEnd, name, type, color,
+    tags:       string[],
+    memo:       string,
+    attendance: Record<memberName, {
+      plan:   'attending'|'late'|'absent'|'undecided'|null,
+      actual: 'present'|'late'|'absent'|'unknown'|null,
+      reason: string|null
+    }>
   }>,
-  circleName:  string,
-  dataVersion: number        // current: ${CURRENT_DATA_VERSION}
+  circleName, accentColor, notice,
+  alertThreshold: number|null,
+  pendingMembers: Array<{id,realName,displayName,note,at}>,
+  dataVersion:    number   // current: ${CURRENT_DATA_VERSION}
 }
 
-// Status: 'present' | 'late' | 'absent' | 'unknown'
+// 出席率 = (actual present+late) / (plan attending+late)
 
-// Change log (Google Sheet: _log)
-// Columns: at | by | type | eventDate | eventName | member | before | after
-// type: 'admin' | 'member'`}
+// Change log (_log): at|by|type|eventDate|eventName|member|before|after`}
               </CodeBlock>
             </div>
 
             <div style={{ marginTop: 24 }}>
               <Label>マイグレーション履歴</Label>
-              <Row k="v1 → v2" v="circleName / dataVersion フィールド追加、eventフィールドの正規化" />
+              <Row k="v1 → v2" v="circleName / accentColor 追加" />
+              <Row k="v2 → v3" v="出席を{plan,actual,reason}に分離、tags/memo/notice/alertThreshold/pendingMembers 追加" />
             </div>
 
             <div style={{ marginTop: 24 }}>

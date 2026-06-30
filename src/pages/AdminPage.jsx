@@ -194,6 +194,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
   // Stats threshold
   const [threshold,    setThreshold]    = useState(() => data?.alertThreshold ?? '')
+  const [notice,       setNotice]       = useState('')
   // Admin confirmation
   const [pendingChange, setPendingChange] = useState(null)  // { evId, ev, member, field, cur, nxt }
 
@@ -201,7 +202,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
 
   useEffect(() => {
     loadData(scriptUrl)
-      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || ''); setThreshold(m.alertThreshold ?? ''); if (m.accentColor) applyAccent(m.accentColor) })
+      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || ''); setThreshold(m.alertThreshold ?? ''); setNotice(m.notice || ''); if (m.accentColor) applyAccent(m.accentColor) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [scriptUrl])
@@ -268,7 +269,6 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     const nd = { ...data, circleName }
     update(nd, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.circleName || '（未設定）', after: `サークル名: ${circleName}` }))
   }
-  const [notice, setNotice] = useState(data.notice || '')
   const saveNotice = () => {
     update({ ...data, notice }, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.notice||'（未設定）', after: `お知らせ更新` }))
     setSettingsMsg('✓ お知らせを保存しました'); setTimeout(()=>setSettingsMsg(''), 2500)
@@ -312,6 +312,14 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     setLogsLoading(false)
   }
   useEffect(() => { if (tab === 'log') loadLogs() }, [tab])
+
+  // Refresh data when opening requests tab (to catch new member requests)
+  useEffect(() => {
+    if (tab !== 'requests') return
+    loadData(scriptUrl)
+      .then(d => setData(prev => ({ ...prev, pendingMembers: d.pendingMembers || [], members: d.members || prev.members })))
+      .catch(() => {})
+  }, [tab, scriptUrl])
 
   const shareUrl = `${window.location.origin}/member?c=${btoa(scriptUrl)}`
   const sortedEvs = [...data.events].sort((a, b) => b.date.localeCompare(a.date))
@@ -530,13 +538,14 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <i className="ti ti-download" style={{ fontSize: 13 }}></i>CSV
               </button>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（参加＋遅刻）÷ 当日記録済み回数</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（当日参加＋遅刻）÷（参加予定＋遅刻予定）</p>
             {/* Alert threshold */}
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'8px 12px', background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-md)' }}>
               <i className="ti ti-bell" style={{ fontSize:14, color:'var(--color-text-secondary)' }}></i>
               <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>出席率アラート</span>
               <input type="number" min="0" max="100" placeholder="例：60" value={threshold}
-                onChange={e=>{setThreshold(e.target.value);saveThreshold(e.target.value)}}
+                onChange={e=>setThreshold(e.target.value)}
+                onBlur={e=>saveThreshold(e.target.value)}
                 style={{ width:60, fontSize:13, padding:'4px 8px', marginLeft:'auto' }} />
               <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>% 未満を強調</span>
             </div>
@@ -559,7 +568,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     <div style={{ height: '100%', width: `${s.rate ?? 0}%`, background: rc, borderRadius: 999 }} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5 }}>
-                    {[{ l: '出席', v: s.present, bg: 'var(--color-background-success)', c: 'var(--color-text-success)' }, { l: '遅刻', v: s.late, bg: 'var(--color-background-warning)', c: 'var(--color-text-warning)' }, { l: '欠席', v: s.absent, bg: 'var(--color-background-danger)', c: 'var(--color-text-danger)' }, { l: '未記入', v: s.unknown, bg: 'var(--color-background-secondary)', c: 'var(--color-text-tertiary)' }].map(it => (
+                    {[{ l: '実績参加', v: s.present, bg: 'var(--color-background-success)', c: 'var(--color-text-success)' }, { l: '実績遅刻', v: s.late, bg: 'var(--color-background-warning)', c: 'var(--color-text-warning)' }, { l: '実績欠席', v: s.absent, bg: 'var(--color-background-danger)', c: 'var(--color-text-danger)' }, { l: '予定分母', v: s.denom ?? 0, bg: 'var(--color-background-secondary)', c: 'var(--color-text-tertiary)' }].map(it => (
                       <div key={it.l} style={{ background: it.bg, borderRadius: 'var(--border-radius-md)', padding: '5px 4px', textAlign: 'center' }}>
                         <p style={{ fontSize: 15, fontWeight: 500, color: it.c, margin: 0 }}>{it.v}</p>
                         <p style={{ fontSize: 10, color: it.c, margin: 0 }}>{it.l}</p>
@@ -569,8 +578,13 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   {data.events.length > 0 && (
                     <div style={{ marginTop: 10, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                       {[...data.events].sort((a, b) => a.date.localeCompare(b.date)).map(ev => {
-                        const st = ev.attendance?.[s.member] || 'unknown'
-                        return <div key={ev.id} title={`${ev.date} ${ev.name}：${STATUS[st].short}`} style={{ width: 8, height: 8, borderRadius: '50%', background: DOT[st], opacity: st === 'unknown' ? 0.2 : 1 }} />
+                        const att = ev.attendance?.[s.member] || {}
+                        const actualSt = typeof att === 'string' ? att : (att.actual ?? null)
+                        const planSt   = typeof att === 'string' ? null : (att.plan ?? null)
+                        const dotColor = actualSt === 'present' ? '#1D9E75' : actualSt === 'late' ? '#BA7517' : actualSt === 'absent' ? '#E24B4A' : null
+                        const planColor = !dotColor ? (planSt === 'attending' ? '#1D9E75' : planSt === 'late' ? '#BA7517' : planSt === 'absent' ? '#E24B4A' : null) : null
+                        const title = `${ev.date} ${ev.name}：実績=${actualSt || '未'} 予定=${planSt || '未'}`
+                        return <div key={ev.id} title={title} style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor || planColor || 'var(--color-border-secondary)', opacity: (dotColor || planColor) ? 1 : 0.2, border: (planColor && !dotColor) ? `1px solid ${planColor}` : 'none', boxSizing: 'border-box' }} />
                       })}
                       <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 4 }}>{data.events.length}回</span>
                     </div>
@@ -627,6 +641,43 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 </Card>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ══ REQUESTS ══ */}
+        {tab === 'requests' && (
+          <div>
+            <p style={{ fontWeight: 500, marginBottom: 4 }}>メンバー申請</p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14 }}>メンバーページから申請されたメンバー候補の一覧です。承認するとメンバーに追加されます。</p>
+            {(!data.pendingMembers || data.pendingMembers.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}>
+                <i className="ti ti-user-check" style={{ fontSize: 36 }}></i>
+                <p style={{ marginTop: 8 }}>現在申請はありません</p>
+                <p style={{ fontSize: 12, marginTop: 4 }}>新しい申請は自動で読み込まれます</p>
+              </div>
+            ) : data.pendingMembers.map(req => (
+              <Card key={req.id} style={{ padding: 14, marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontWeight: 500, margin: 0 }}>{req.displayName} <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 400 }}>（表示名）</span></p>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '3px 0' }}>本名: {req.realName}</p>
+                    {req.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0' }}>備考: {req.note}</p>}
+                    <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>{req.at}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => {
+                      if (data.members.includes(req.displayName)) { alert(`「${req.displayName}」はすでに登録されています`); return }
+                      const nd = { ...data, members: [...data.members, req.displayName], pendingMembers: data.pendingMembers.filter(r => r.id !== req.id) }
+                      update(nd, mkLog({ by: adminLabel, type: 'admin', member: req.displayName, before: '申請中', after: 'メンバー承認' }))
+                    }} style={{ padding: '6px 14px', background: GR, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>承認</button>
+                    <button onClick={() => {
+                      if (!confirm(`「${req.displayName}」の申請を却下しますか？`)) return
+                      update({ ...data, pendingMembers: data.pendingMembers.filter(r => r.id !== req.id) }, mkLog({ by: adminLabel, type: 'admin', member: req.displayName, before: '申請中', after: '却下' }))
+                    }} style={{ padding: '6px 14px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>却下</button>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -827,6 +878,23 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               </button>
             </Card>
 
+            {/* Restore URL (cross-device) */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                <i className="ti ti-device-laptop" style={{ fontSize: 18, color: AC, marginTop: 2, flexShrink: 0 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>別デバイスへの復元URL</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4, lineHeight: 1.6 }}>別のPCやスマホで管理するときは、このURLを開くとスプレッドシートの設定が自動で復元されます。ブックマーク推奨。</p>
+                </div>
+              </div>
+              <div style={{ background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 'var(--border-radius-md)', padding: '8px 10px', fontSize: 12, wordBreak: 'break-all', marginBottom: 8 }}>
+                {`${window.location.origin}/admin?restore=${btoa(scriptUrl)}`}
+              </div>
+              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/admin?restore=${btoa(scriptUrl)}`); setCopied('restore'); setTimeout(() => setCopied(''), 2000) }} style={{ width: '100%', padding: '7px', background: ACB, border: 'none', borderRadius: 'var(--border-radius-md)', color: ACD, cursor: 'pointer', fontWeight: 500, fontSize: 13 }}>
+                {copied === 'restore' ? '✓ コピーしました' : '復元URLをコピー'}
+              </button>
+            </Card>
+
             {/* Apps Script code (re-deploy if needed) */}
             <Card style={{ padding: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
@@ -903,12 +971,39 @@ export default function AdminPage() {
     const u = getStoredUser(); return u ? getStoredScript(u.sub) : ''
   })
 
+  // Handle ?restore=<base64 script url> for cross-device setup
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const restore = params.get('restore')
+    if (!restore) return
+    try {
+      const url = atob(restore)
+      if (url.startsWith('https://script.google.com')) {
+        const u = getStoredUser()
+        if (u) {
+          localStorage.setItem(`circle_script_${u.sub}`, url)
+          setScriptUrl(url)
+        } else {
+          sessionStorage.setItem('pending_restore', url)
+        }
+        window.history.replaceState({}, '', '/admin')
+      }
+    } catch {}
+  }, [])
+
   const handleCredential = useCallback((response) => {
     const payload = parseJwt(response.credential)
     const u = { sub: payload.sub, email: payload.email, name: payload.name, picture: payload.picture }
     localStorage.setItem('circle_admin', JSON.stringify(u))
     setUser(u)
-    setScriptUrl(getStoredScript(u.sub))
+    const pending = sessionStorage.getItem('pending_restore')
+    if (pending) {
+      localStorage.setItem(`circle_script_${u.sub}`, pending)
+      sessionStorage.removeItem('pending_restore')
+      setScriptUrl(pending)
+    } else {
+      setScriptUrl(getStoredScript(u.sub))
+    }
   }, [])
 
   const handleSetScript = useCallback((url) => {

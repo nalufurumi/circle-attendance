@@ -91,6 +91,7 @@ export default function MemberPage() {
   const [showRequest, setShowRequest] = useState(false)
   const today = todayStr()
   const timerRef = useRef({})
+  const origState = useRef({})
   const latestData = useRef(null)
 
   useEffect(() => {
@@ -101,10 +102,22 @@ export default function MemberPage() {
     if (!url.startsWith('http')) { setError('URLが無効です。'); setLoading(false); return }
     setScriptUrl(url)
     loadData(url)
-      .then(d => { const m={...DEFAULT_DATA,...d}; setData(m); if(m.accentColor) applyAccent(m.accentColor) })
+      .then(d => { const m={...DEFAULT_DATA,...d}; setData(m); latestData.current=m; if(m.accentColor) applyAccent(m.accentColor) })
       .catch(() => setError('データの取得に失敗しました。'))
       .finally(() => setLoading(false))
   }, [params])
+
+  // Flush any pending debounced save if the tab is closed/hidden within the 1s window
+  useEffect(() => {
+    const flush = () => {
+      if (Object.keys(timerRef.current).length === 0 || !latestData.current || !scriptUrl) return
+      try { navigator.sendBeacon(scriptUrl, JSON.stringify({ action: 'save', data: latestData.current })) } catch {}
+    }
+    const onVis = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVis)
+    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onVis) }
+  }, [scriptUrl])
 
   const updateAtt = (evId, member, field, value) => {
     const ev = data.events.find(e=>e.id===evId); if (!ev) return
@@ -116,17 +129,21 @@ export default function MemberPage() {
 
     // Debounce: save 1 second after last tap
     const key = `${evId}_${member}_${field}`
-    const beforeLabel = String(oldAtt[field]||'未入力')
-    const afterLabel  = String(value||'未入力')
     const evSnap = { date:ev.date, name:ev.name }
+    // Capture TRUE original only on first tap of this debounce window
+    if (!(key in origState.current)) origState.current[key] = String(oldAtt[field]||'未入力')
+    const afterLabel = String(value||'未入力')
     if (timerRef.current[key]) clearTimeout(timerRef.current[key])
     setSaving(true)
     timerRef.current[key] = setTimeout(async () => {
+      const beforeLabel = origState.current[key]
       try {
         await saveData(scriptUrl, latestData.current,
-          mkLog({ by:member, type:'member', eventDate:evSnap.date, eventName:evSnap.name, member, before:beforeLabel, after:afterLabel }))
+          beforeLabel === afterLabel ? null
+            : mkLog({ by:member, type:'member', eventDate:evSnap.date, eventName:evSnap.name, member, before:beforeLabel, after:afterLabel }))
       } catch {}
       delete timerRef.current[key]
+      delete origState.current[key]
       if (Object.keys(timerRef.current).length === 0) setSaving(false)
     }, 1000)
   }

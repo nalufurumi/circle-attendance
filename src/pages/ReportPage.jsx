@@ -4,7 +4,7 @@ const AC  = 'var(--accent)'
 const ACB = 'var(--accent-bg)'
 const ACD = 'var(--accent-dark)'
 
-const APP_VER     = '2.1.0'
+const APP_VER     = '2.2.0'
 const CONTACT     = 'nalufurumi@gmail.com'
 const BUG_URL     = import.meta.env.VITE_BUG_REPORT_URL || ''
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   COLORS, getColor, PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
-  EVENT_TYPES, applyAccent, todayStr, computeStats,
+  EVENT_TYPES, applyAccent, todayStr, computeStats, isEditLocked,
 } from '../lib/constants.js'
 
 const AC = 'var(--accent)', ACB = 'var(--accent-bg)', ACD = 'var(--accent-dark)'
@@ -16,6 +16,9 @@ function seedData() {
     alertThreshold: 60,
     globalTags: ['全体', 'ダンス', '2期生', '新曲'],
     members: ['あやか', 'みお', 'さくら', 'ひなた', 'ゆい', 'りん', 'まな', 'のあ'],
+    pendingMembers: [
+      { id: 'req1', realName: '田中陽菜', displayName: 'ひな', note: '新2年生・パート未定', at: '2026/6/28 21:10' },
+    ],
     events: [
       { id: 'd1', date: D(7),  timeStart: '14:00', timeEnd: '17:00', name: '全体練習（新曲）', type: '練習', color: 'pink',   tags: ['全体', '新曲'], memo: '新曲のフォーメーション確認します！動きやすい服装で。', attendance: {
         あやか: { plan: 'attending', actual: null, reason: null }, みお: { plan: 'attending', actual: null, reason: null },
@@ -56,11 +59,18 @@ export default function DemoPage() {
   const [expandedEv, setExpandedEv] = useState(null)
   const [evMode, setEvMode] = useState({})
   const [activeTag, setActiveTag] = useState(null)
+  const [memberSearch, setMemberSearch] = useState('')
   const [logs, setLogs] = useState([])
   const [showAddEv, setShowAddEv] = useState(false)
+  const [editingEvId, setEditingEvId] = useState(null)
   const [newEv, setNewEv] = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
   const [tagInput, setTagInput] = useState('')
+  const [newTagInput, setNewTagInput] = useState('')
   const [notice, setNotice] = useState(seedData().notice)
+  const [memberSort, setMemberSort] = useState('registration')
+  const [pendingChange, setPendingChange] = useState(null)
+  const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
+  const [reasonDraft, setReasonDraft] = useState({})
   const today = todayStr()
 
   const allTags = [...new Set([...(data.globalTags || []), ...data.events.flatMap(e => e.tags || [])])]
@@ -68,35 +78,85 @@ export default function DemoPage() {
 
   const addLog = (entry) => setLogs(l => [{ at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }), ...entry }, ...l].slice(0, 50))
 
-  // In-memory cycle (no save)
-  const cycle = (evId, member, field) => {
-    const order = field === 'plan' ? PLAN_ORDER : ACTUAL_ORDER
+  // In-memory attendance change (member side — no confirmation needed)
+  const updateAtt = (evId, member, field, value) => {
+    const ev = data.events.find(e => e.id === evId); if (!ev) return
+    const sm = field === 'plan' ? PLAN_STATUS : ACTUAL_STATUS
     setData(d => ({
       ...d,
       events: d.events.map(e => {
         if (e.id !== evId) return e
         const att = e.attendance[member] || { plan: null, actual: null, reason: null }
         const cur = att[field] ?? null
-        const nxt = order[(order.indexOf(cur) + 1) % order.length]
-        const sm = field === 'plan' ? PLAN_STATUS : ACTUAL_STATUS
-        addLog({ by: view === 'admin' ? '管理者' : member, type: view === 'admin' ? 'admin' : 'member', eventName: e.name, member, before: sm[cur]?.label || '未入力', after: sm[nxt]?.label || '未入力' })
-        return { ...e, attendance: { ...e.attendance, [member]: { ...att, [field]: nxt } } }
+        addLog({ by: member, type: 'member', eventName: e.name, member, before: sm[cur]?.label || '未入力', after: sm[value]?.label || '未入力' })
+        return { ...e, attendance: { ...e.attendance, [member]: { ...att, [field]: value } } }
       }),
     }))
+  }
+  const saveReason = (evId, member, reason) => {
+    setData(d => ({ ...d, events: d.events.map(e => e.id !== evId ? e : { ...e, attendance: { ...e.attendance, [member]: { ...(e.attendance[member] || {}), reason: reason || null } } }) }))
+  }
+
+  // Admin attendance change — goes through confirmation modal
+  const cycleAdmin = (evId, member, field) => {
+    const ev = data.events.find(e => e.id === evId); if (!ev) return
+    const order = field === 'plan' ? PLAN_ORDER : ACTUAL_ORDER
+    const att = ev.attendance[member] || { plan: null, actual: null, reason: null }
+    const cur = att[field] ?? null
+    const nxt = order[(order.indexOf(cur) + 1) % order.length]
+    setPendingChange({ evId, ev, member, field, cur, nxt })
+  }
+  const doAdminChange = ({ evId, ev, member, field, cur, nxt }) => {
+    const sm = field === 'plan' ? PLAN_STATUS : ACTUAL_STATUS
+    setData(d => ({ ...d, events: d.events.map(e => e.id !== evId ? e : { ...e, attendance: { ...e.attendance, [member]: { ...(e.attendance[member] || {}), [field]: nxt } } }) }))
+    addLog({ by: '管理者', type: 'admin', eventName: ev.name, member, before: sm[cur]?.label || '未入力', after: sm[nxt]?.label || '未入力' })
+    setPendingChange(null)
+  }
+
+  const startEditEvent = (ev) => {
+    setNewEv({ date: ev.date, timeStart: ev.timeStart || '', timeEnd: ev.timeEnd || '', name: ev.name, type: ev.type, color: ev.color, tags: ev.tags || [], memo: ev.memo || '' })
+    setEditingEvId(ev.id); setShowAddEv(true); setExpandedEv(null)
   }
 
   const addEvent = () => {
     if (!newEv.date || !newEv.name.trim()) return
-    const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo, attendance: {} }
-    setData(d => ({ ...d, events: [...d.events, ev], globalTags: [...new Set([...(d.globalTags || []), ...newEv.tags])] }))
-    addLog({ by: '管理者', type: 'admin', eventName: ev.name, member: '', before: '（未作成）', after: 'イベント追加' })
+    if (editingEvId) {
+      setData(d => ({
+        ...d,
+        globalTags: [...new Set([...(d.globalTags || []), ...newEv.tags])],
+        events: d.events.map(e => e.id !== editingEvId ? e : { ...e, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo }),
+      }))
+      addLog({ by: '管理者', type: 'admin', eventName: newEv.name.trim(), member: '', before: 'イベント編集前', after: 'イベント編集' })
+      setExpandedEv(editingEvId)
+    } else {
+      const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo, attendance: {} }
+      setData(d => ({ ...d, events: [...d.events, ev], globalTags: [...new Set([...(d.globalTags || []), ...newEv.tags])] }))
+      addLog({ by: '管理者', type: 'admin', eventName: ev.name, member: '', before: '（未作成）', after: 'イベント追加' })
+      setExpandedEv(ev.id)
+    }
     setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
-    setTagInput(''); setShowAddEv(false); setExpandedEv(ev.id)
+    setTagInput(''); setShowAddEv(false); setEditingEvId(null)
+  }
+
+  const doRemoveMember = (name) => {
+    setData(d => ({ ...d, members: d.members.filter(m => m !== name), events: d.events.map(e => { const a = { ...e.attendance }; delete a[name]; return { ...e, attendance: a } }) }))
+    addLog({ by: '管理者', type: 'admin', eventName: '', member: name, before: 'メンバー存在', after: 'メンバー削除' })
+    setPendingMemberDelete(null)
+  }
+
+  const approveMember = (req) => {
+    if (data.members.includes(req.displayName)) return
+    setData(d => ({ ...d, members: [...d.members, req.displayName], pendingMembers: d.pendingMembers.filter(r => r.id !== req.id) }))
+    addLog({ by: '管理者', type: 'admin', eventName: '', member: req.displayName, before: '申請中', after: 'メンバー承認' })
+  }
+  const rejectMember = (req) => {
+    setData(d => ({ ...d, pendingMembers: d.pendingMembers.filter(r => r.id !== req.id) }))
+    addLog({ by: '管理者', type: 'admin', eventName: '', member: req.displayName, before: '申請中', after: '却下' })
   }
 
   const getStats = m => {
     const s = computeStats(data.events, m)
-    return { present: s.present, late: s.late, absent: s.absent, denom: s.heldDenom, rate: s.actualRate, predicted: s.predictedRate }
+    return { present: s.present, late: s.late, absent: s.absent, denom: s.heldDenom, rate: s.actualRate, predicted: s.predictedRate, planTotal: s.planTotal }
   }
 
   return (
@@ -131,13 +191,29 @@ export default function DemoPage() {
                   <p style={{ fontSize: 13, color: ACD, lineHeight: 1.7 }}>{data.notice}</p>
                 </div>
               )}
-              <p style={{ fontWeight: 500, marginBottom: 12 }}>名前を選んでください</p>
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>名前を選んでください</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>タップして出席状況を確認・入力できます</p>
+
+              <div style={{ position: 'relative', marginBottom: 12 }}>
+                <i className="ti ti-search" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', fontSize: 15, pointerEvents: 'none' }}></i>
+                <input type="text" placeholder="名前を検索..." value={memberSearch} onChange={e => setMemberSearch(e.target.value)} style={{ paddingLeft: 34 }} />
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {data.members.map(m => (
+                {data.members.filter(m => m.includes(memberSearch)).map(m => (
                   <button key={m} onClick={() => setSelMember(m)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px', background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', cursor: 'pointer', textAlign: 'left', border: 'none', boxShadow: 'var(--shadow-card)' }}>
                     <Avatar name={m} size={36} /><span style={{ fontWeight: 500, fontSize: 13 }}>{m}</span>
                   </button>
                 ))}
+              </div>
+              {memberSearch && data.members.filter(m => m.includes(memberSearch)).length === 0 && (
+                <p style={{ textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13, marginTop: 16 }}>「{memberSearch}」は見つかりませんでした</p>
+              )}
+
+              <div style={{ marginTop: 20, textAlign: 'center' }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-tertiary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <i className="ti ti-user-plus" style={{ fontSize: 15 }}></i>メンバー登録を申請する（体験版では無効）
+                </span>
               </div>
             </>
           ) : (
@@ -147,7 +223,11 @@ export default function DemoPage() {
                 <Avatar name={selMember} size={42} />
                 <div>
                   <p style={{ fontWeight: 500, fontSize: 16, margin: 0 }}>{selMember}</p>
-                  {(() => { const st = getStats(selMember); const rc = st.rate == null ? 'var(--color-text-tertiary)' : st.rate >= 80 ? 'var(--color-text-success)' : st.rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'; return <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>実績出席率 <strong style={{ color: rc }}>{st.rate == null ? '－' : `${st.rate}%`}</strong>　欠席 {st.absent}回</p> })()}
+                  {(() => {
+                    const st = getStats(selMember)
+                    const rc = st.rate == null ? 'var(--color-text-tertiary)' : st.rate >= 80 ? 'var(--color-text-success)' : st.rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
+                    return <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>実績出席率 <strong style={{ color: rc }}>{st.rate == null ? '－' : `${st.rate}%`}</strong>{st.predicted != null && <span style={{ color: 'var(--color-text-tertiary)' }}>　予測 {st.predicted}%</span>}　欠席 {st.absent}回</p>
+                  })()}
                 </div>
               </div>
               {allTags.length > 0 && (
@@ -162,31 +242,55 @@ export default function DemoPage() {
                 const field = isUpcoming ? 'plan' : 'actual'
                 const cur = att[field] ?? null
                 const sm = isUpcoming ? PLAN_STATUS : ACTUAL_STATUS
+                const statusOrder = isUpcoming ? PLAN_ORDER : ACTUAL_ORDER
                 const s = sm[cur] || sm[null]
+                const locked = isEditLocked(ev)
                 return (
-                  <Card key={ev.id} style={{ marginBottom: 10, padding: 14 }}>
+                  <Card key={ev.id} style={{ marginBottom: 10, padding: 14, opacity: locked ? 0.85 : 1 }}>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <div style={{ width: 4, borderRadius: 2, background: getColor(ev.color), flexShrink: 0, alignSelf: 'stretch', minHeight: 36 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                           <div style={{ minWidth: 0 }}>
                             <p style={{ fontWeight: 500, margin: 0 }}>{ev.name}</p>
-                            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd}` : ''} · {ev.type}</p>
+                            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
                           </div>
-                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start', background: isUpcoming ? ACB : 'var(--color-background-secondary)', color: isUpcoming ? ACD : 'var(--color-text-tertiary)', fontWeight: 500 }}>{isUpcoming ? '事前入力' : '当日記録'}</span>
+                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start', background: locked ? 'var(--color-background-secondary)' : (isUpcoming ? ACB : 'var(--color-background-secondary)'), color: locked ? 'var(--color-text-tertiary)' : (isUpcoming ? ACD : 'var(--color-text-tertiary)'), fontWeight: 500 }}>
+                            {locked ? '🔒 締切' : (isUpcoming ? '事前入力' : '当日記録')}
+                          </span>
                         </div>
                         {ev.tags?.length > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '6px 0' }}>{ev.tags.map(t => <span key={t} style={{ fontSize: 11, padding: '1px 7px', background: ACB, color: ACD, borderRadius: 999 }}>#{t}</span>)}</div>}
                         {ev.memo && <div style={{ display: 'flex', gap: 6, background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-sm)', padding: '6px 10px', margin: '6px 0', fontSize: 12, color: 'var(--color-text-secondary)' }}><span>📝</span><span>{ev.memo}</span></div>}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                          <button onClick={() => cycle(ev.id, selMember, field)} style={{ padding: '7px 18px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', cursor: 'pointer', color: s.text, fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 16 }}>{s.icon}</span><span>{s.label}</span>
-                          </button>
+                          <select
+                            disabled={locked}
+                            value={cur ?? '__null__'}
+                            onChange={e => { if (locked) return; const v = e.target.value === '__null__' ? null : e.target.value; updateAtt(ev.id, selMember, field, v) }}
+                            style={{ padding: '7px 14px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', color: s.text, fontSize: 14, fontWeight: 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.7 : 1, minWidth: 150 }}
+                          >
+                            {statusOrder.map(st => (
+                              <option key={String(st)} value={st ?? '__null__'}>{sm[st]?.icon} {sm[st]?.label}</option>
+                            ))}
+                          </select>
                         </div>
+                        {locked && <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'right', marginTop: 6 }}>開始から24時間が経過したため編集できません</p>}
+                        {!locked && (
+                          <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <input type="text" placeholder="理由（任意）例：テスト・バイト"
+                              value={reasonDraft[ev.id] ?? att.reason ?? ''}
+                              onChange={e => setReasonDraft({ ...reasonDraft, [ev.id]: e.target.value })}
+                              onBlur={() => saveReason(ev.id, selMember, reasonDraft[ev.id] ?? att.reason ?? '')}
+                              style={{ flex: 1, fontSize: 13 }} />
+                            {att.reason && <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}>保存済</span>}
+                          </div>
+                        )}
+                        {locked && att.reason && <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>理由: {att.reason}</p>}
                       </div>
                     </div>
                   </Card>
                 )
               })}
+              <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 12 }}>プルダウンから状況を選択してください</p>
             </>
           )}
         </div>
@@ -195,10 +299,11 @@ export default function DemoPage() {
       {/* ═══ ADMIN VIEW ═══ */}
       {view === 'admin' && (
         <>
-          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', position: 'sticky', top: 48, zIndex: 9, display: 'flex' }}>
-            {[{ id: 'events', icon: 'ti-calendar', label: 'イベント' }, { id: 'members', icon: 'ti-users', label: 'メンバー' }, { id: 'stats', icon: 'ti-chart-bar', label: '統計' }, { id: 'log', icon: 'ti-history', label: 'ログ' }, { id: 'settings', icon: 'ti-settings', label: '設定' }].map(t => (
-              <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 0 10px', border: 'none', borderBottom: adminTab === t.id ? `2px solid ${AC}` : '2px solid transparent', background: 'transparent', color: adminTab === t.id ? AC : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: adminTab === t.id ? 500 : 400 }}>
+          <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', position: 'sticky', top: 48, zIndex: 9, display: 'flex', overflowX: 'auto' }}>
+            {[{ id: 'events', icon: 'ti-calendar', label: 'イベント' }, { id: 'members', icon: 'ti-users', label: 'メンバー' }, { id: 'stats', icon: 'ti-chart-bar', label: '統計' }, { id: 'log', icon: 'ti-history', label: 'ログ' }, { id: 'requests', icon: 'ti-user-check', label: '申請' }, { id: 'settings', icon: 'ti-settings', label: '設定' }].map(t => (
+              <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ flex: '1 0 auto', minWidth: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 4px 10px', border: 'none', borderBottom: adminTab === t.id ? `2px solid ${AC}` : '2px solid transparent', background: 'transparent', color: adminTab === t.id ? AC : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: adminTab === t.id ? 500 : 400 }}>
                 <i className={`ti ${t.icon}`} style={{ fontSize: 18 }}></i>{t.label}
+                {t.id === 'requests' && data.pendingMembers.length > 0 && <span style={{ position: 'absolute', marginTop: -22, marginLeft: 18, width: 7, height: 7, borderRadius: '50%', background: 'var(--color-text-danger)' }} />}
               </button>
             ))}
           </div>
@@ -208,13 +313,13 @@ export default function DemoPage() {
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontWeight: 500 }}>イベント管理</span>
-                  <button onClick={() => setShowAddEv(!showAddEv)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  <button onClick={() => { setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setShowAddEv(!showAddEv) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
                     <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
                   </button>
                 </div>
                 {showAddEv && (
                   <Card style={{ padding: 14, marginBottom: 12 }}>
-                    <p style={{ fontWeight: 500, marginBottom: 10 }}>新しいイベント</p>
+                    <p style={{ fontWeight: 500, marginBottom: 10 }}>{editingEvId ? 'イベントを編集' : '新しいイベント'}</p>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                       <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>日付</p><input type="date" value={newEv.date} onChange={e => setNewEv({ ...newEv, date: e.target.value })} /></div>
                       <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>種別</p><select value={newEv.type} onChange={e => setNewEv({ ...newEv, type: e.target.value })}>{EVENT_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
@@ -238,8 +343,8 @@ export default function DemoPage() {
                       <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{COLORS.map(c => <button key={c.id} onClick={() => setNewEv({ ...newEv, color: c.id })} style={{ width: 24, height: 24, borderRadius: '50%', background: c.hex, border: 'none', cursor: 'pointer', outline: newEv.color === c.id ? `3px solid ${c.hex}` : 'none', outlineOffset: -5 }} />)}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={addEvent} style={{ flex: 1, padding: '9px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>追加する</button>
-                      <button onClick={() => setShowAddEv(false)} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+                      <button onClick={addEvent} style={{ flex: 1, padding: '9px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>{editingEvId ? '更新する' : '追加する'}</button>
+                      <button onClick={() => { setShowAddEv(false); setEditingEvId(null) }} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
                     </div>
                   </Card>
                 )}
@@ -249,6 +354,9 @@ export default function DemoPage() {
               const isOpen = expandedEv === ev.id
               const mode = evMode[ev.id] || (ev.date > today ? 'plan' : 'actual')
               const sm = mode === 'plan' ? PLAN_STATUS : ACTUAL_STATUS
+              const statusOrder = mode === 'plan'
+                ? [['attending', '参加予定'], ['late', '遅刻予定'], ['absent', '不参加'], ['undecided', '未定'], [null, '未入力']]
+                : [['present', '参加'], ['late', '遅刻'], ['absent', '不参加'], ['unknown', '不明'], [null, '未入力']]
               return (
                 <Card key={ev.id} style={{ marginBottom: 8, overflow: 'hidden' }}>
                   <div onClick={() => setExpandedEv(isOpen ? null : ev.id)} style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -256,7 +364,7 @@ export default function DemoPage() {
                       <div style={{ width: 4, height: 36, borderRadius: 2, background: getColor(ev.color), flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0 }}>{ev.name}</p>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd}` : ''} · {ev.type}</p>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
                         {ev.tags?.length > 0 && <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 3 }}>{ev.tags.map(t => <span key={t} style={{ fontSize: 10, padding: '1px 6px', background: ACB, color: ACD, borderRadius: 999 }}>#{t}</span>)}</div>}
                       </div>
                     </div>
@@ -267,18 +375,36 @@ export default function DemoPage() {
                       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
                         {['plan', 'actual'].map(m => <button key={m} onClick={() => setEvMode({ ...evMode, [ev.id]: m })} style={{ padding: '4px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 12, background: mode === m ? AC : 'var(--color-background-secondary)', color: mode === m ? '#fff' : 'var(--color-text-secondary)' }}>{m === 'plan' ? '事前入力' : '当日記録'}</button>)}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                        {data.members.map(member => {
-                          const att = ev.attendance[member] || {}
-                          const cur = att[mode] ?? null
-                          const s = sm[cur] || sm[null]
-                          return (
-                            <button key={member} onClick={() => cycle(ev.id, member, mode)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', cursor: 'pointer' }}>
-                              <span style={{ fontSize: 13 }}>{member}</span>
-                              <span style={{ fontSize: 14, fontWeight: 500, color: s.text }}>{s.icon} {s.short}</span>
-                            </button>
-                          )
-                        })}
+                      {statusOrder.map(([st, groupLabel]) => {
+                        const members = data.members.filter(m => (ev.attendance[m]?.[mode] ?? null) === st)
+                        if (members.length === 0) return null
+                        const s = sm[st] || sm[null]
+                        return (
+                          <div key={String(st)} style={{ marginBottom: 10 }}>
+                            <p style={{ fontSize: 11, color: s.text, fontWeight: 500, marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              {s.icon} {groupLabel} <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 400 }}>({members.length}人)</span>
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                              {members.map(member => {
+                                const att = ev.attendance[member] || {}
+                                return (
+                                  <div key={member}>
+                                    <button onClick={() => cycleAdmin(ev.id, member, mode)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', cursor: 'pointer', width: '100%' }}>
+                                      <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{member}</span>
+                                      <i className="ti ti-pencil" style={{ fontSize: 12, color: s.text, opacity: 0.5 }}></i>
+                                    </button>
+                                    {att.reason && <p style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2, paddingLeft: 4 }}>理由: {att.reason}</p>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button onClick={() => startEditEvent(ev)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <i className="ti ti-edit" style={{ fontSize: 13 }}></i>編集
+                        </button>
                       </div>
                     </div>
                   )}
@@ -287,35 +413,81 @@ export default function DemoPage() {
             })}
 
             {adminTab === 'members' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {data.members.map(m => (
-                  <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Avatar name={m} /><span style={{ fontWeight: 500 }}>{m}</span>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {adminTab === 'stats' && data.members.map(m => {
-              const st = getStats(m)
-              const thresh = data.alertThreshold
-              const below = thresh != null && st.rate != null && st.rate < thresh
-              const rc = st.rate == null ? 'var(--color-text-tertiary)' : st.rate >= 80 ? 'var(--color-text-success)' : st.rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
-              return (
-                <Card key={m} style={{ padding: 14, marginBottom: 10, border: below ? '1.5px solid var(--color-text-danger)' : undefined }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar name={m} /><span style={{ fontWeight: 500 }}>{m}</span>{below && <span style={{ fontSize: 11, padding: '1px 7px', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', borderRadius: 999, fontWeight: 500 }}>アラート</span>}</div>
-                    <span style={{ fontSize: 22, fontWeight: 500, color: rc }}>{st.rate == null ? '－' : `${st.rate}%`}</span>
-                  </div>
-                  <div style={{ height: 3, background: 'var(--color-background-secondary)', borderRadius: 999, marginBottom: 10, overflow: 'hidden' }}><div style={{ height: '100%', width: `${st.rate ?? 0}%`, background: rc, borderRadius: 999 }} /></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5 }}>
-                    {[{ l: '実績参加', v: st.present, bg: 'var(--color-background-success)', c: 'var(--color-text-success)' }, { l: '実績遅刻', v: st.late, bg: 'var(--color-background-warning)', c: 'var(--color-text-warning)' }, { l: '実績欠席', v: st.absent, bg: 'var(--color-background-danger)', c: 'var(--color-text-danger)' }, { l: '予定分母', v: st.denom, bg: 'var(--color-background-secondary)', c: 'var(--color-text-tertiary)' }].map(it => (
-                      <div key={it.l} style={{ background: it.bg, borderRadius: 'var(--border-radius-md)', padding: '5px 4px', textAlign: 'center' }}><p style={{ fontSize: 15, fontWeight: 500, color: it.c, margin: 0 }}>{it.v}</p><p style={{ fontSize: 10, color: it.c, margin: 0 }}>{it.l}</p></div>
+              <>
+                {data.members.length > 1 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>並び替え:</span>
+                    {[
+                      { id: 'registration', label: '登録順', icon: 'ti-list-numbers' },
+                      { id: 'asc', label: 'あ→ん', icon: 'ti-sort-ascending' },
+                      { id: 'desc', label: 'ん→あ', icon: 'ti-sort-descending' },
+                      { id: 'random', label: 'ランダム', icon: 'ti-arrows-shuffle' },
+                    ].map(s => (
+                      <button key={s.id} onClick={() => {
+                        if (s.id === 'random') {
+                          const shuffled = [...data.members]
+                          for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]] }
+                          setData(d => ({ ...d, members: shuffled }))
+                        } else if (s.id === 'asc') {
+                          setData(d => ({ ...d, members: [...d.members].sort((a, b) => a.localeCompare(b, 'ja')) }))
+                        } else if (s.id === 'desc') {
+                          setData(d => ({ ...d, members: [...d.members].sort((a, b) => b.localeCompare(a, 'ja')) }))
+                        }
+                        setMemberSort(s.id)
+                      }} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 10px', borderRadius: 999, fontSize: 12, border: 'none', cursor: 'pointer', background: memberSort === s.id ? AC : 'var(--color-background-secondary)', color: memberSort === s.id ? '#fff' : 'var(--color-text-secondary)' }}>
+                        <i className={`ti ${s.icon}`} style={{ fontSize: 13 }}></i>{s.label}
+                      </button>
                     ))}
                   </div>
-                </Card>
-              )
-            })}
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {data.members.map((m) => (
+                    <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Avatar name={m} /><span style={{ fontWeight: 500 }}>{m}</span>
+                      </div>
+                      <button onClick={() => setPendingMemberDelete(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
+                        <i className="ti ti-x" style={{ fontSize: 14 }}></i>
+                      </button>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {adminTab === 'stats' && (
+              <>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14 }}>実績出席率＝（開催済の参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）<br />※ 開催前のイベントは実績にカウントされません</p>
+                {data.members.map(m => {
+                  const st = getStats(m)
+                  const thresh = data.alertThreshold
+                  const below = thresh != null && st.rate != null && st.rate < thresh
+                  const rc = st.rate == null ? 'var(--color-text-tertiary)' : st.rate >= 80 ? 'var(--color-text-success)' : st.rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
+                  return (
+                    <Card key={m} style={{ padding: 14, marginBottom: 10, border: below ? '1.5px solid var(--color-text-danger)' : undefined }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Avatar name={m} /><span style={{ fontWeight: 500 }}>{m}</span>{below && <span style={{ fontSize: 11, padding: '1px 7px', background: 'var(--color-background-danger)', color: 'var(--color-text-danger)', borderRadius: 999, fontWeight: 500 }}>アラート</span>}</div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 22, fontWeight: 500, color: rc }}>{st.rate == null ? '－' : `${st.rate}%`}</span>
+                          <p style={{ fontSize: 10, color: 'var(--color-text-tertiary)', margin: 0 }}>実績</p>
+                        </div>
+                      </div>
+                      <div style={{ height: 3, background: 'var(--color-background-secondary)', borderRadius: 999, marginBottom: 8, overflow: 'hidden' }}><div style={{ height: '100%', width: `${st.rate ?? 0}%`, background: rc, borderRadius: 999 }} /></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                        <i className="ti ti-chart-dots" style={{ fontSize: 12 }}></i>
+                        予測出席率（予定込み）: <strong style={{ color: 'var(--color-text-primary)' }}>{st.predicted == null ? '－' : `${st.predicted}%`}</strong>
+                        <span style={{ color: 'var(--color-text-tertiary)' }}>（予定総数 {st.planTotal}回）</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5 }}>
+                        {[{ l: '実績参加', v: st.present, bg: 'var(--color-background-success)', c: 'var(--color-text-success)' }, { l: '実績遅刻', v: st.late, bg: 'var(--color-background-warning)', c: 'var(--color-text-warning)' }, { l: '実績欠席', v: st.absent, bg: 'var(--color-background-danger)', c: 'var(--color-text-danger)' }, { l: '実績分母', v: st.denom, bg: 'var(--color-background-secondary)', c: 'var(--color-text-tertiary)' }].map(it => (
+                          <div key={it.l} style={{ background: it.bg, borderRadius: 'var(--border-radius-md)', padding: '5px 4px', textAlign: 'center' }}><p style={{ fontSize: 15, fontWeight: 500, color: it.c, margin: 0 }}>{it.v}</p><p style={{ fontSize: 10, color: it.c, margin: 0 }}>{it.l}</p></div>
+                        ))}
+                      </div>
+                    </Card>
+                  )
+                })}
+              </>
+            )}
 
             {/* LOG tab */}
             {adminTab === 'log' && (
@@ -326,7 +498,7 @@ export default function DemoPage() {
                   <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}>
                     <i className="ti ti-history" style={{ fontSize: 36 }}></i>
                     <p style={{ marginTop: 8 }}>まだ記録がありません</p>
-                    <p style={{ fontSize: 12, marginTop: 4 }}>出欠ボタンをタップすると記録されます</p>
+                    <p style={{ fontSize: 12, marginTop: 4 }}>出欠を変更すると記録されます</p>
                   </div>
                 ) : logs.map((log, i) => (
                   <Card key={i} style={{ padding: '10px 12px', marginBottom: 6 }}>
@@ -337,6 +509,35 @@ export default function DemoPage() {
                         <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>{log.eventName}：{log.before} → <strong style={{ color: 'var(--color-text-primary)' }}>{log.after}</strong></p>
                       </div>
                       <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>{String(log.at).slice(-8)}</span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* REQUESTS tab */}
+            {adminTab === 'requests' && (
+              <div>
+                <p style={{ fontWeight: 500, marginBottom: 4 }}>メンバー申請</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14 }}>メンバーページから申請されたメンバー候補の一覧です。承認するとメンバーに追加されます。</p>
+                {data.pendingMembers.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}>
+                    <i className="ti ti-user-check" style={{ fontSize: 36 }}></i>
+                    <p style={{ marginTop: 8 }}>現在申請はありません</p>
+                  </div>
+                ) : data.pendingMembers.map(req => (
+                  <Card key={req.id} style={{ padding: 14, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontWeight: 500, margin: 0 }}>{req.displayName} <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 400 }}>（表示名）</span></p>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '3px 0' }}>本名: {req.realName}</p>
+                        {req.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0' }}>備考: {req.note}</p>}
+                        <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>{req.at}</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => approveMember(req)} style={{ padding: '6px 14px', background: '#1D9E75', border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>承認</button>
+                        <button onClick={() => rejectMember(req)} style={{ padding: '6px 14px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>却下</button>
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -381,8 +582,19 @@ export default function DemoPage() {
                     <i className="ti ti-tags" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
                     <p style={{ fontWeight: 500, margin: 0 }}>タグ管理</p>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                    {allTags.map(tag => <span key={tag} style={{ padding: '3px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12 }}>#{tag}</span>)}
+                  {allTags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                      {allTags.map(tag => (
+                        <span key={tag} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12 }}>
+                          #{tag}
+                          <button onClick={() => setData(d => ({ ...d, globalTags: (d.globalTags || []).filter(t => t !== tag) }))} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ACD, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input type="text" placeholder="新しいタグを入力して「追加」" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} style={{ flex: 1 }} />
+                    <button onClick={() => { const t = newTagInput.trim().replace(/^#/, ''); if (t && !allTags.includes(t)) setData(d => ({ ...d, globalTags: [...(d.globalTags || []), t] })); setNewTagInput('') }} style={{ padding: '0 16px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>追加</button>
                   </div>
                 </Card>
               </div>
@@ -403,6 +615,49 @@ export default function DemoPage() {
           </a>
         </Card>
       </div>
+
+      {/* Admin confirmation modal */}
+      {pendingChange && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.35)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setPendingChange(null)}>
+          <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: 24, maxWidth: 320, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 6 }}>本当に変更しますか？</p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 4 }}><strong>{pendingChange.member}</strong> の{pendingChange.field === 'plan' ? '事前入力' : '当日記録'}</p>
+            {(() => {
+              const sm = pendingChange.field === 'plan' ? PLAN_STATUS : ACTUAL_STATUS
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px 14px', marginBottom: 16 }}>
+                  <span style={{ fontSize: 16 }}>{sm[pendingChange.cur]?.icon || '－'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>{sm[pendingChange.cur]?.label || '未入力'}</span>
+                  <i className="ti ti-arrow-right" style={{ fontSize: 14, color: 'var(--color-text-tertiary)', margin: '0 4px' }}></i>
+                  <span style={{ fontSize: 16 }}>{sm[pendingChange.nxt]?.icon || '－'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>{sm[pendingChange.nxt]?.label || '未入力'}</span>
+                </div>
+              )
+            })()}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => doAdminChange(pendingChange)} style={{ flex: 1, padding: '10px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, fontSize: 14 }}>変更する</button>
+              <button onClick={() => setPendingChange(null)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 14 }}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Member delete confirmation */}
+      {pendingMemberDelete && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.35)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setPendingMemberDelete(null)}>
+          <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', padding: 24, maxWidth: 320, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', marginBottom: 14 }}><i className="ti ti-alert-triangle" style={{ fontSize: 32, color: 'var(--color-text-danger)' }}></i></div>
+            <p style={{ fontWeight: 500, fontSize: 15, marginBottom: 6, textAlign: 'center' }}>メンバーを削除しますか？</p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, textAlign: 'center', lineHeight: 1.7 }}>
+              <strong>{pendingMemberDelete}</strong> を削除すると、<br />このメンバーの全イベントの出欠記録も削除されます。
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => doRemoveMember(pendingMemberDelete)} style={{ flex: 1, padding: '10px', background: 'var(--color-text-danger)', border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, fontSize: 14 }}>削除する</button>
+              <button onClick={() => setPendingMemberDelete(null)} style={{ flex: 1, padding: '10px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 14 }}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

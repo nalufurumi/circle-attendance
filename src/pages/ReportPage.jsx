@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 // accent colors come from CSS variables set by applyAccent()
 const AC  = 'var(--accent)'
 const ACB = 'var(--accent-bg)'
@@ -24,6 +24,7 @@ const Card = ({ children, style = {} }) => (
 
 export default function ReportPage() {
   const [params] = useSearchParams()
+  const navigate = useNavigate()
   const initialType = TYPES.some(t => t.id === params.get('type')) ? params.get('type') : 'bug'
   const [type,    setType]    = useState(initialType)
   const [message, setMessage] = useState('')
@@ -68,9 +69,18 @@ export default function ReportPage() {
     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', paddingBottom: '2rem', background: 'var(--color-background-tertiary)', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <a href="/admin" style={{ color: 'var(--color-text-secondary)', textDecoration: 'none', fontSize: 13 }}>
+        <button
+          onClick={() => {
+            // Same-origin referrer (came from within the app, e.g. /demo or /admin) → go back in history.
+            // Otherwise (direct link, bookmark, new tab) → don't guess; just stay, no admin shortcut.
+            if (document.referrer && new URL(document.referrer).origin === window.location.origin && window.history.length > 1) {
+              navigate(-1)
+            }
+          }}
+          style={{ color: 'var(--color-text-secondary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+        >
           <i className="ti ti-arrow-left" style={{ fontSize: 16 }}></i>
-        </a>
+        </button>
         <span style={{ color: AC }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15 }}>バグ報告・お問い合わせ</span>
       </div>

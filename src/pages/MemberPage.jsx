@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { loadData, saveData, mkLog } from '../lib/api.js'
+import { pingHeartbeat } from '../lib/telemetry.js'
 import {
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   getColor, applyAccent, DEFAULT_DATA, todayStr,
@@ -103,7 +104,10 @@ export default function MemberPage() {
     if (!url.startsWith('http')) { setError('URLが無効です。'); setLoading(false); return }
     setScriptUrl(url)
     loadData(url)
-      .then(d => { const m={...DEFAULT_DATA,...d}; setData(m); latestData.current=m; if(m.accentColor) applyAccent(m.accentColor) })
+      .then(d => {
+        const m={...DEFAULT_DATA,...d}; setData(m); latestData.current=m; if(m.accentColor) applyAccent(m.accentColor)
+        pingHeartbeat({ scriptUrl: url, role: 'member', memberCount: m.members?.length ?? 0, eventCount: m.events?.length ?? 0 })
+      })
       .catch(() => setError('データの取得に失敗しました。'))
       .finally(() => setLoading(false))
   }, [params])
@@ -286,12 +290,25 @@ export default function MemberPage() {
                       )}
 
                       <div style={{ display:'flex', justifyContent:'flex-end', marginTop:4 }}>
-                        <button
-                          disabled={locked}
-                          onClick={()=>{ if (locked) return; const ni=(statusOrder.indexOf(curStatus)+1)%statusOrder.length; updateAtt(ev.id,selMember,field,statusOrder[ni]) }}
-                          style={{ padding:'7px 18px', background:s.bg, border:`0.5px solid ${s.border}`, borderRadius:'var(--border-radius-md)', cursor: locked ? 'not-allowed' : 'pointer', color:s.text, fontSize:14, fontWeight:500, display:'flex', alignItems:'center', gap:6, opacity: locked ? 0.7 : 1 }}>
-                          <span style={{ fontSize:16 }}>{s.icon}</span><span>{s.label}</span>
-                        </button>
+                        {data.inputStyle === 'dropdown' ? (
+                          <select
+                            disabled={locked}
+                            value={curStatus ?? '__null__'}
+                            onChange={e => { if (locked) return; const v = e.target.value === '__null__' ? null : e.target.value; updateAtt(ev.id, selMember, field, v) }}
+                            style={{ padding: '7px 14px', background: s.bg, border: `0.5px solid ${s.border}`, borderRadius: 'var(--border-radius-md)', color: s.text, fontSize: 14, fontWeight: 500, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.7 : 1, minWidth: 140 }}
+                          >
+                            {statusOrder.map(st => (
+                              <option key={String(st)} value={st ?? '__null__'}>{statusMap[st]?.icon} {statusMap[st]?.label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            disabled={locked}
+                            onClick={()=>{ if (locked) return; const ni=(statusOrder.indexOf(curStatus)+1)%statusOrder.length; updateAtt(ev.id,selMember,field,statusOrder[ni]) }}
+                            style={{ padding:'7px 18px', background:s.bg, border:`0.5px solid ${s.border}`, borderRadius:'var(--border-radius-md)', cursor: locked ? 'not-allowed' : 'pointer', color:s.text, fontSize:14, fontWeight:500, display:'flex', alignItems:'center', gap:6, opacity: locked ? 0.7 : 1 }}>
+                            <span style={{ fontSize:16 }}>{s.icon}</span><span>{s.label}</span>
+                          </button>
+                        )}
                       </div>
 
                       {locked && (

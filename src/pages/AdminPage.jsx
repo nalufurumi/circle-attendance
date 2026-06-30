@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { loadData, saveData, getLogs, mkLog } from '../lib/api.js'
+import { pingHeartbeat } from '../lib/telemetry.js'
 import {
   CLIENT_ID, COLORS, getColor,
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
@@ -207,7 +208,12 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
 
   useEffect(() => {
     loadData(scriptUrl)
-      .then(d => { const m = { ...DEFAULT_DATA, ...d }; setData(m); setCircleName(m.circleName || ''); setThreshold(m.alertThreshold ?? ''); setNotice(m.notice || ''); if (m.accentColor) applyAccent(m.accentColor) })
+      .then(d => {
+        const m = { ...DEFAULT_DATA, ...d }
+        setData(m); setCircleName(m.circleName || ''); setThreshold(m.alertThreshold ?? ''); setNotice(m.notice || '')
+        if (m.accentColor) applyAccent(m.accentColor)
+        pingHeartbeat({ scriptUrl, role: 'admin', memberCount: m.members?.length ?? 0, eventCount: m.events?.length ?? 0 })
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [scriptUrl])
@@ -851,6 +857,33 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <input type="text" placeholder="新しいタグを入力して「追加」" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
                   style={{ flex: 1 }} />
                 <button onClick={() => { const t = newTagInput.trim().replace(/^#/, ''); if (t && !availableTags.includes(t)) update({ ...data, globalTags: [...(data.globalTags || []), t] }); setNewTagInput('') }} style={{ padding: '0 16px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>追加</button>
+              </div>
+            </Card>
+
+            {/* Member input style */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                <i className="ti ti-adjustments" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>メンバーの出欠入力方式</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>メンバーページでの出欠状況の入力方法を選べます</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { id: 'button',   icon: 'ti-hand-click', label: 'ボタン', desc: 'タップで順に切替' },
+                  { id: 'dropdown', icon: 'ti-list',        label: 'プルダウン', desc: '選択式' },
+                ].map(opt => {
+                  const active = (data.inputStyle || 'button') === opt.id
+                  return (
+                    <button key={opt.id} onClick={() => update({ ...data, inputStyle: opt.id }, mkLog({ by: adminLabel, type: 'admin', member: '', before: data.inputStyle || 'button', after: `入力方式: ${opt.label}` }))}
+                      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '12px 8px', borderRadius: 'var(--border-radius-md)', border: `1.5px solid ${active ? AC : 'var(--color-border-secondary)'}`, background: active ? ACB : 'var(--color-background-primary)', cursor: 'pointer' }}>
+                      <i className={`ti ${opt.icon}`} style={{ fontSize: 20, color: active ? ACD : 'var(--color-text-secondary)' }}></i>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: active ? ACD : 'var(--color-text-primary)' }}>{opt.label}</span>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{opt.desc}</span>
+                    </button>
+                  )
+                })}
               </div>
             </Card>
 

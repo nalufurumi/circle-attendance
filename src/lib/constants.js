@@ -156,7 +156,7 @@ export function computeStats(events, member, now = new Date()) {
 
 export const DEFAULT_DATA = {
   members: [], events: [], circleName: '', accentColor: 'rose',
-  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], dataVersion: 3,
+  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], inputStyle: 'button', dataVersion: 3,
 }
 
 // ── Apps Script (v2 with log support) ────────────────────────

@@ -4,7 +4,8 @@ import { APPS_SCRIPT } from '../lib/constants.js'
 import { getErrors, clearErrors } from '../lib/errorLog.js'
 
 const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || '0000'
-const BUG_URL      = import.meta.env.VITE_BUG_REPORT_URL || ''
+const BUG_URL       = import.meta.env.VITE_BUG_REPORT_URL || ''
+const ANALYTICS_URL = import.meta.env.VITE_ANALYTICS_URL || ''
 const APP_VER      = '2.2.0'
 const CONTACT      = 'nalufurumi@gmail.com'
 const REPO_URL     = 'https://github.com/nalufurumi/circle-attendance'
@@ -39,6 +40,82 @@ function doPost(e) {
           '\n【連絡先】'+(payload.email||'未記入')+
           '\n【バージョン】'+payload.version+'\n【UA】'+payload.ua,
   });
+  return out('{"ok":true}');
+}
+
+function out(t) {
+  return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.JSON);
+}\``
+
+const ANALYTICS_SCRIPT = `// 出席管理アプリ — 匿名テレメトリ収集スクリプト
+// 個人情報（メンバー名・出欠内容・理由・団体名・メール）は一切受け取りません。
+// 受け取るのは「ハッシュ化された団体ID」「役割(admin/member)」「件数」「エラー内容」のみです。
+
+function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var action = (e.parameter.action || 'summary');
+
+  if (action === 'summary') {
+    var hb = ss.getSheetByName('heartbeats');
+    var er = ss.getSheetByName('errors');
+    var orgs = {}, adminPings = 0, memberPings = 0, maxMembers = {}, maxEvents = {};
+    if (hb && hb.getLastRow() > 1) {
+      var rows = hb.getRange(2, 1, hb.getLastRow() - 1, 6).getValues();
+      rows.forEach(function(r) {
+        var orgId = r[1], role = r[2], mc = r[3], ec = r[4];
+        orgs[orgId] = true;
+        if (role === 'admin') adminPings++; else memberPings++;
+        if (!maxMembers[orgId] || mc > maxMembers[orgId]) maxMembers[orgId] = mc;
+        if (!maxEvents[orgId] || ec > maxEvents[orgId]) maxEvents[orgId] = ec;
+      });
+    }
+    var totalMembers = 0, totalEvents = 0;
+    Object.keys(maxMembers).forEach(function(k) { totalMembers += (maxMembers[k] || 0); });
+    Object.keys(maxEvents).forEach(function(k) { totalEvents += (maxEvents[k] || 0); });
+    var errorCount = (er && er.getLastRow() > 1) ? er.getLastRow() - 1 : 0;
+    return out(JSON.stringify({
+      activeOrgs: Object.keys(orgs).length,
+      adminPings: adminPings,
+      memberPings: memberPings,
+      estimatedMembers: totalMembers,
+      estimatedEvents: totalEvents,
+      errorCount: errorCount,
+    }));
+  }
+
+  if (action === 'errors') {
+    var er2 = ss.getSheetByName('errors');
+    if (!er2 || er2.getLastRow() <= 1) return out('[]');
+    var n = Math.min(er2.getLastRow() - 1, 100);
+    var startRow = er2.getLastRow() - n + 1;
+    var rows2 = er2.getRange(startRow, 1, n, 6).getValues();
+    return out(JSON.stringify(rows2.map(function(r) {
+      return {at:r[0],orgId:r[1],type:r[2],message:r[3],url:r[4],appVersion:r[5]};
+    }).reverse()));
+  }
+
+  return out('{}');
+}
+
+function doPost(e) {
+  var payload = JSON.parse(e.postData.contents);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  if (payload.kind === 'heartbeat') {
+    var hb = ss.getSheetByName('heartbeats') || ss.insertSheet('heartbeats');
+    if (hb.getLastRow() === 0) {
+      hb.getRange(1,1,1,6).setValues([['日時','orgId','role','memberCount','eventCount','appVersion']]);
+    }
+    hb.appendRow([payload.at||'', payload.orgId||'', payload.role||'',
+      payload.memberCount||0, payload.eventCount||0, payload.appVersion||'']);
+  } else if (payload.kind === 'error') {
+    var er = ss.getSheetByName('errors') || ss.insertSheet('errors');
+    if (er.getLastRow() === 0) {
+      er.getRange(1,1,1,6).setValues([['日時','orgId','種別','内容','URL','バージョン']]);
+    }
+    er.appendRow([payload.at||'', payload.orgId||'', payload.type||'',
+      String(payload.message||'').slice(0,500), payload.url||'', payload.appVersion||'']);
+  }
   return out('{"ok":true}');
 }
 
@@ -161,6 +238,45 @@ export default function DevPage() {
   useEffect(() => { if (authed) loadLS() }, [authed])
   useEffect(() => { if (authed) setErrors(getErrors()) }, [authed])
 
+  // ── Bug reports ──
+  const fetchBugs = async () => {
+    if (!BUG_URL) { setBugs({ _nourl: true }); return }
+    setBugsLoading(true)
+    try {
+      const res = await fetch(BUG_URL + '?action=get', { signal: AbortSignal.timeout(10000) })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setBugs(Array.isArray(data) ? data : [])
+    } catch (e) {
+      setBugs({ _error: e.message })
+    }
+    setBugsLoading(false)
+  }
+  useEffect(() => { if (authed && tab === 'bugs') fetchBugs() }, [authed, tab])
+
+  // ── Analytics (全体分析) ──
+  const [analyticsSummary, setAnalyticsSummary] = useState(null)
+  const [analyticsErrors,  setAnalyticsErrors]  = useState(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [analyticsScriptCopied, setAnalyticsScriptCopied] = useState(false)
+
+  const fetchAnalytics = async () => {
+    if (!ANALYTICS_URL) { setAnalyticsSummary({ _nourl: true }); return }
+    setAnalyticsLoading(true)
+    try {
+      const [s, e] = await Promise.all([
+        fetch(ANALYTICS_URL + '?action=summary', { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+        fetch(ANALYTICS_URL + '?action=errors',  { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+      ])
+      setAnalyticsSummary(s)
+      setAnalyticsErrors(Array.isArray(e) ? e : [])
+    } catch (err) {
+      setAnalyticsSummary({ _error: err.message })
+    }
+    setAnalyticsLoading(false)
+  }
+  useEffect(() => { if (authed && tab === 'analytics') fetchAnalytics() }, [authed, tab])
+
   // ── Diagnostics ──
   const runDiag = async () => {
     if (!scriptUrl) return
@@ -280,13 +396,14 @@ export default function DevPage() {
 
   // ── Render: Dashboard ──
   const TABS = [
-    { id: 'diag',   label: '診断' },
-    { id: 'errors', label: errors.length > 0 ? `⚠ エラー (${errors.length})` : '⚠ エラー' },
-    { id: 'data',   label: 'データ' },
-    { id: 'logs',   label: 'ログ' },
-    { id: 'bugs',   label: '🐛 バグ報告' },
-    { id: 'cache',  label: 'キャッシュ' },
-    { id: 'build',  label: 'ビルド' },
+    { id: 'diag',      label: '診断' },
+    { id: 'errors',    label: errors.length > 0 ? `⚠ エラー (${errors.length})` : '⚠ エラー' },
+    { id: 'analytics', label: '📊 全体分析' },
+    { id: 'data',      label: 'データ' },
+    { id: 'logs',      label: 'ログ' },
+    { id: 'bugs',      label: '🐛 バグ報告' },
+    { id: 'cache',     label: 'キャッシュ' },
+    { id: 'build',     label: 'ビルド' },
   ]
 
   return (
@@ -489,6 +606,78 @@ export default function DevPage() {
                 {e.stack && <pre style={{ background: '#060608', border: `1px solid ${T.border}`, borderRadius: 4, padding: 8, fontSize: 10, overflow: 'auto', maxHeight: 120, color: T.textDim, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{e.stack}</pre>}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── ANALYTICS (全体分析) ── */}
+        {tab === 'analytics' && (
+          <div>
+            <Label>全クライアント横断データ（匿名集計）</Label>
+            <p style={{ color: T.textDim, fontSize: 11, marginBottom: 14, lineHeight: 1.8 }}>
+              個人情報（メンバー名・出欠内容・理由・団体名）は含まれません。各団体はハッシュ化されたIDのみで識別されます。
+            </p>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button onClick={fetchAnalytics} disabled={analyticsLoading} style={{ padding: '6px 14px', background: T.border, border: `1px solid ${T.border2}`, color: T.textMuted, cursor: 'pointer', borderRadius: 5, fontSize: 12 }}>
+                {analyticsLoading ? '取得中...' : '最新を取得'}
+              </button>
+            </div>
+
+            {analyticsSummary?._nourl && (
+              <div>
+                <p style={{ color: T.amber, fontSize: 12, marginBottom: 12 }}>全体分析スクリプトの設定手順：</p>
+                <ol style={{ color: T.textDim, fontSize: 11, paddingLeft: 18, lineHeight: 2.2 }}>
+                  <li>Google スプレッドシートを新規作成（分析専用・他のシートと分ける）</li>
+                  <li>「拡張機能」→「Apps Script」を開く</li>
+                  <li>下のコードを貼り付けてデプロイ（アクセス: 全員）</li>
+                  <li>Vercel の Environment Variables に <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: 3 }}>VITE_ANALYTICS_URL</code> を追加</li>
+                  <li>Vercel で Redeploy → 以降、全クライアントのアプリが自動でハートビート／エラーを送信開始</li>
+                </ol>
+                <div style={{ position: 'relative', marginTop: 12 }}>
+                  <CodeBlock maxHeight={260}>{ANALYTICS_SCRIPT}</CodeBlock>
+                  <button onClick={() => { navigator.clipboard.writeText(ANALYTICS_SCRIPT); setAnalyticsScriptCopied(true); setTimeout(() => setAnalyticsScriptCopied(false), 2000) }} style={{ position: 'absolute', top: 6, right: 6, padding: '2px 8px', background: T.surface, border: `1px solid ${T.border2}`, color: T.textDim, cursor: 'pointer', borderRadius: 4, fontSize: 10 }}>
+                    {analyticsScriptCopied ? '✓ コピー' : 'コピー'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {analyticsSummary?._error && <p style={{ color: T.red, fontSize: 12 }}>Error: {analyticsSummary._error}</p>}
+
+            {analyticsSummary && !analyticsSummary._nourl && !analyticsSummary._error && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+                  {[
+                    { label: '稼働団体数', val: analyticsSummary.activeOrgs ?? 0, color: T.green },
+                    { label: '推定メンバー数', val: analyticsSummary.estimatedMembers ?? 0, color: T.blue },
+                    { label: '推定イベント総数', val: analyticsSummary.estimatedEvents ?? 0, color: T.purple },
+                    { label: 'エラー件数', val: analyticsSummary.errorCount ?? 0, color: analyticsSummary.errorCount > 0 ? T.red : T.textDim },
+                    { label: '管理者アクセス', val: analyticsSummary.adminPings ?? 0, color: T.textMuted },
+                    { label: 'メンバーアクセス', val: analyticsSummary.memberPings ?? 0, color: T.textMuted },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 6, padding: '12px 14px' }}>
+                      <p style={{ fontSize: 24, fontWeight: 600, color: s.color, margin: 0 }}>{s.val}</p>
+                      <p style={{ fontSize: 11, color: T.textDim, margin: '2px 0 0' }}>{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ color: T.textDim, fontSize: 10, marginBottom: 16 }}>
+                  ※ 推定メンバー数・イベント数は、各団体ごとの最新ハートビート時点の件数を合算したものです（重複なし）。
+                </p>
+
+                <Label>クライアント横断エラー（最新100件）</Label>
+                {(!analyticsErrors || analyticsErrors.length === 0) ? (
+                  <p style={{ color: T.green, fontSize: 12, marginTop: 8 }}>✓ エラーは記録されていません</p>
+                ) : analyticsErrors.map((e, i) => (
+                  <div key={i} style={{ background: '#1a0a0a', border: `1px solid ${T.redBord}`, borderRadius: 5, padding: '10px 12px', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: T.redBg, color: T.red, border: `1px solid ${T.redBord}` }}>{e.type}</span>
+                      <span style={{ color: T.textDim, fontSize: 10 }}>org:{e.orgId} · {String(e.at).slice(0, 16)} · {e.url}</span>
+                    </div>
+                    <p style={{ color: '#f0c0c0', fontSize: 12, margin: '4px 0', wordBreak: 'break-word' }}>{e.message}</p>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
 

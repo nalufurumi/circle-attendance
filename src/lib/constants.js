@@ -104,7 +104,7 @@ export const nowStr   = () => new Date().toLocaleString('ja-JP', { timeZone: 'As
 
 export const DEFAULT_DATA = {
   members: [], events: [], circleName: '', accentColor: 'rose',
-  notice: '', alertThreshold: null, pendingMembers: [], dataVersion: 3,
+  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], dataVersion: 3,
 }
 
 // ── Apps Script (v2 with log support) ────────────────────────

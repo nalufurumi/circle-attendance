@@ -39,8 +39,10 @@ function migrate(raw) {
     d.notice          = d.notice          || ''
     d.alertThreshold  = d.alertThreshold  ?? null
     d.pendingMembers  = d.pendingMembers  || []
+    d.globalTags      = d.globalTags      || []
   }
 
+  if (!d.globalTags) d.globalTags = []
   d.dataVersion = CURRENT_DATA_VERSION
   return d
 }

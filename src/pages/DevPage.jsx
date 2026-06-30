@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { loadData, saveData, getLogs, migrate, CURRENT_DATA_VERSION } from '../lib/api.js'
 import { APPS_SCRIPT } from '../lib/constants.js'
+import { getErrors, clearErrors } from '../lib/errorLog.js'
 
 const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || 'circledev'
 const BUG_URL      = import.meta.env.VITE_BUG_REPORT_URL || ''
@@ -130,6 +131,9 @@ export default function DevPage() {
   const [logsLoading, setLogsLoading] = useState(false)
   const [migrateMsg,  setMigrateMsg]  = useState('')
 
+  // ── Errors ──
+  const [errors, setErrors] = useState([])
+
   // ── Cache ──
   const [lsItems, setLsItems] = useState([])
 
@@ -250,12 +254,13 @@ export default function DevPage() {
 
   // ── Render: Dashboard ──
   const TABS = [
-    { id: 'diag',  label: '診断' },
-    { id: 'data',  label: 'データ' },
-    { id: 'logs',  label: 'ログ' },
-    { id: 'bugs',  label: '🐛 バグ報告' },
-    { id: 'cache', label: 'キャッシュ' },
-    { id: 'build', label: 'ビルド' },
+    { id: 'diag',   label: '診断' },
+    { id: 'errors', label: '⚠ エラー' },
+    { id: 'data',   label: 'データ' },
+    { id: 'logs',   label: 'ログ' },
+    { id: 'bugs',   label: '🐛 バグ報告' },
+    { id: 'cache',  label: 'キャッシュ' },
+    { id: 'build',  label: 'ビルド' },
   ]
 
   return (
@@ -405,6 +410,38 @@ export default function DevPage() {
           </div>
         )}
 
+        {/* ── ERRORS ── */}
+        {tab === 'errors' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Label>ランタイムエラー（最新50件）</Label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setErrors(getErrors())} style={{ padding: '4px 10px', background: T.border, border: `1px solid ${T.border2}`, color: T.textMuted, cursor: 'pointer', borderRadius: 4, fontSize: 11 }}>更新</button>
+                {errors.length > 0 && <button onClick={() => { clearErrors(); setErrors([]) }} style={{ padding: '4px 10px', background: T.redBg, border: `1px solid ${T.redBord}`, color: T.red, cursor: 'pointer', borderRadius: 4, fontSize: 11 }}>クリア</button>}
+              </div>
+            </div>
+            <p style={{ color: T.textDim, fontSize: 11, marginBottom: 12 }}>このブラウザで発生したJSエラー・未処理Promise・console.errorを自動記録します。</p>
+            {errors.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem 0', color: T.textDim }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
+                <p style={{ fontSize: 13, color: T.green }}>エラーは記録されていません</p>
+              </div>
+            ) : errors.map((e, i) => (
+              <div key={i} style={{ background: '#1a0a0a', border: `1px solid ${T.redBord}`, borderRadius: 5, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: T.redBg, color: T.red, border: `1px solid ${T.redBord}` }}>
+                    {e.type === 'promise' ? 'Promise' : e.type === 'console' ? 'console.error' : 'Error'}
+                  </span>
+                  <span style={{ color: T.textDim, fontSize: 10 }}>{String(e.at).slice(0, 16)} · {e.url}</span>
+                </div>
+                <p style={{ color: '#f0c0c0', fontSize: 12, margin: '4px 0', wordBreak: 'break-word' }}>{e.message}</p>
+                {e.source && <p style={{ color: T.textDim, fontSize: 10, margin: '2px 0' }}>{e.source}</p>}
+                {e.stack && <pre style={{ background: '#060608', border: `1px solid ${T.border}`, borderRadius: 4, padding: 8, fontSize: 10, overflow: 'auto', maxHeight: 120, color: T.textDim, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>{e.stack}</pre>}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── BUG REPORTS ── */}
         {tab === 'bugs' && (
           <div>
@@ -527,6 +564,8 @@ export default function DevPage() {
             <Row k="deploy"       v="Vercel (Vite preset)" />
             <Row k="github"       v={<a href={REPO_URL} style={{ color: T.blue }}>{REPO_URL}</a>} />
             <Row k="prod_url"     v={<a href={PROD_URL} style={{ color: T.blue }}>{PROD_URL}</a>} />
+            <Row k="demo_url"     v={<a href="/demo" style={{ color: T.blue }}>/demo（営業用・ログイン不要の体験版）</a>} />
+            <Row k="report_url"   v={<a href="/report" style={{ color: T.blue }}>/report（バグ報告）</a>} />
             <Row k="dev_password" v={DEV_PW === 'circledev' ? '(default — set VITE_DEV_PASSWORD in Vercel env)' : '(custom)'} />
 
             <div style={{ marginTop: 24 }}>

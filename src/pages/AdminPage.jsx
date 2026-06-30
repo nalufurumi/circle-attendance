@@ -191,6 +191,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   })
   // Events tab extras
   const [tagInput,     setTagInput]     = useState('')
+  const [editingEvId,  setEditingEvId]  = useState(null)
+  const [memberSort,   setMemberSort]   = useState('registration')  // registration|asc|desc|random
+  const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
+  const [newTagInput,  setNewTagInput]  = useState('')
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
   // Stats threshold
   const [threshold,    setThreshold]    = useState(() => data?.alertThreshold ?? '')
@@ -199,6 +203,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [pendingChange, setPendingChange] = useState(null)  // { evId, ev, member, field, cur, nxt }
 
   const adminLabel = `${getDisplayName(user)} (${user.email})`
+  const availableTags = [...new Set([...(data.globalTags || []), ...data.events.flatMap(e => e.tags || [])])]
 
   useEffect(() => {
     loadData(scriptUrl)
@@ -236,10 +241,34 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
   const addEvent = () => {
     if (!newEv.date || !newEv.name.trim()) return
-    const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart||'', timeEnd: newEv.timeEnd||'', name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags||[], memo: newEv.memo||'', attendance: {} }
-    const nd = { ...data, events: [...data.events, ev].sort((a, b) => b.date.localeCompare(a.date)) }
-    update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, before: '（未作成）', after: 'イベント追加' }))
-    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput(''); setShowAddEv(false); setExpandedEv(ev.id)
+    // Merge any newly created tags into globalTags so they persist
+    const mergedGlobalTags = [...new Set([...(data.globalTags || []), ...(newEv.tags || [])])]
+    if (editingEvId) {
+      // Edit existing — preserve attendance
+      const nd = {
+        ...data,
+        globalTags: mergedGlobalTags,
+        events: data.events.map(e => e.id !== editingEvId ? e : {
+          ...e, date: newEv.date, timeStart: newEv.timeStart || '', timeEnd: newEv.timeEnd || '',
+          name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags || [], memo: newEv.memo || '',
+        }).sort((a, b) => b.date.localeCompare(a.date)),
+      }
+      update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: newEv.date, eventName: newEv.name.trim(), before: 'イベント編集前', after: 'イベント編集' }))
+      setExpandedEv(editingEvId)
+    } else {
+      const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart || '', timeEnd: newEv.timeEnd || '', name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags || [], memo: newEv.memo || '', attendance: {} }
+      const nd = { ...data, globalTags: mergedGlobalTags, events: [...data.events, ev].sort((a, b) => b.date.localeCompare(a.date)) }
+      update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, before: '（未作成）', after: 'イベント追加' }))
+      setExpandedEv(ev.id)
+    }
+    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+    setTagInput(''); setShowAddEv(false); setEditingEvId(null)
+  }
+
+  const startEditEvent = (ev) => {
+    setNewEv({ date: ev.date, timeStart: ev.timeStart || '', timeEnd: ev.timeEnd || '', name: ev.name, type: ev.type, color: ev.color, tags: ev.tags || [], memo: ev.memo || '' })
+    setEditingEvId(ev.id); setShowAddEv(true); setExpandedEv(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const removeEvent = id => {
     const ev = data.events.find(e => e.id === id)
@@ -321,6 +350,17 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
       .catch(() => {})
   }, [tab, scriptUrl])
 
+  // Refresh event/attendance data when opening events tab (to reflect member inputs)
+  useEffect(() => {
+    if (tab !== 'events') return
+    loadData(scriptUrl)
+      .then(d => setData(prev => {
+        // Don't clobber an in-flight save; only merge if no pending change
+        return { ...prev, events: d.events || prev.events, members: d.members || prev.members }
+      }))
+      .catch(() => {})
+  }, [tab, scriptUrl])
+
   const shareUrl = `${window.location.origin}/member?c=${btoa(scriptUrl)}`
   const sortedEvs = [...data.events].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -371,14 +411,19 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontWeight: 500 }}>イベント管理</span>
-              <button onClick={() => setShowAddEv(!showAddEv)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-                <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => { loadData(scriptUrl).then(d => setData(prev => ({ ...prev, events: d.events || prev.events, members: d.members || prev.members }))).catch(() => {}) }} title="最新の出欠を取得" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: 'var(--color-background-secondary)', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+                  <i className="ti ti-refresh" style={{ fontSize: 14 }}></i>更新
+                </button>
+                <button onClick={() => { setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setShowAddEv(!showAddEv) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
+                </button>
+              </div>
             </div>
 
             {showAddEv && (
               <Card style={{ padding: 14, marginBottom: 12 }}>
-                <p style={{ fontWeight: 500, marginBottom: 10 }}>新しいイベント</p>
+                <p style={{ fontWeight: 500, marginBottom: 10 }}>{editingEvId ? 'イベントを編集' : '新しいイベント'}</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                   <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>日付</p><input type="date" value={newEv.date} onChange={e => setNewEv({ ...newEv, date: e.target.value })} /></div>
                   <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>種別</p>
@@ -387,7 +432,37 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     </select>
                   </div>
                 </div>
-                <div style={{ marginBottom: 10 }}><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>イベント名</p><input type="text" placeholder="例：6月定期練習" value={newEv.name} onChange={e => setNewEv({ ...newEv, name: e.target.value })} onKeyDown={e => e.key === 'Enter' && addEvent()} /></div>
+                {/* Time */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>開始時間（任意）</p><input type="time" value={newEv.timeStart} onChange={e => setNewEv({ ...newEv, timeStart: e.target.value })} /></div>
+                  <div><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>終了時間（任意）</p><input type="time" value={newEv.timeEnd} onChange={e => setNewEv({ ...newEv, timeEnd: e.target.value })} /></div>
+                </div>
+                <div style={{ marginBottom: 10 }}><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>イベント名</p><input type="text" placeholder="例：6月定期練習" value={newEv.name} onChange={e => setNewEv({ ...newEv, name: e.target.value })} /></div>
+                {/* Tags */}
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>タグ</p>
+                  {availableTags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+                      {availableTags.map(tag => {
+                        const sel = (newEv.tags || []).includes(tag)
+                        return <button key={tag} onClick={() => setNewEv(p => ({ ...p, tags: sel ? p.tags.filter(t => t !== tag) : [...(p.tags || []), tag] }))} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, border: 'none', cursor: 'pointer', background: sel ? AC : 'var(--color-background-secondary)', color: sel ? '#fff' : 'var(--color-text-secondary)' }}>#{tag}</button>
+                      })}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input type="text" placeholder="新しいタグを入力" value={tagInput} onChange={e => setTagInput(e.target.value)}
+                      onKeyDown={e => { if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) { e.preventDefault(); const t = tagInput.trim().replace(/^#/, ''); if (t) setNewEv(p => ({ ...p, tags: [...(p.tags || []).filter(x => x !== t), t] })); setTagInput('') } }}
+                      style={{ flex: 1 }} />
+                    <GhostBtn onClick={() => { const t = tagInput.trim().replace(/^#/, ''); if (t) setNewEv(p => ({ ...p, tags: [...(p.tags || []).filter(x => x !== t), t] })); setTagInput('') }}>追加</GhostBtn>
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 4 }}>設定タブでもタグを一括管理できます</p>
+                </div>
+                {/* Memo */}
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>メモ（メンバーに表示）</p>
+                  <textarea placeholder="例：衣装持参でお願いします！集合13:45" value={newEv.memo || ''} onChange={e => setNewEv({ ...newEv, memo: e.target.value })} style={{ minHeight: 60 }} />
+                </div>
+                {/* Color */}
                 <div style={{ marginBottom: 14 }}>
                   <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>ラベルカラー</p>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -398,8 +473,8 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <PrimaryBtn onClick={addEvent} style={{ flex: 1 }}>追加する</PrimaryBtn>
-                  <GhostBtn onClick={() => setShowAddEv(false)}>キャンセル</GhostBtn>
+                  <PrimaryBtn onClick={addEvent} style={{ flex: 1 }}>{editingEvId ? '更新する' : '追加する'}</PrimaryBtn>
+                  <GhostBtn onClick={() => { setShowAddEv(false); setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput('') }}>キャンセル</GhostBtn>
                 </div>
               </Card>
             )}
@@ -475,10 +550,15 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                         </>
                       )}
                       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{Object.values(ev.attendance || {}).filter(v => v !== 'unknown').length} / {data.members.length} 記録済み</span>
-                        <button onClick={() => removeEvent(ev.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <i className="ti ti-trash" style={{ fontSize: 13 }}></i>削除
-                        </button>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{Object.values(ev.attendance || {}).filter(v => { const a = typeof v === 'string' ? v : (v.actual || v.plan); return a && a !== 'unknown' }).length} / {data.members.length} 入力済み</span>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          <button onClick={() => startEditEvent(ev)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <i className="ti ti-edit" style={{ fontSize: 13 }}></i>編集
+                          </button>
+                          <button onClick={() => removeEvent(ev.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <i className="ti ti-trash" style={{ fontSize: 13 }}></i>削除
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -506,6 +586,36 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               </Card>
             )}
             {data.members.length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-users" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>メンバーがいません</p></div>}
+
+            {/* Sort controls */}
+            {data.members.length > 1 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>並び替え:</span>
+                {[
+                  { id: 'registration', label: '登録順', icon: 'ti-list-numbers' },
+                  { id: 'asc',          label: 'あ→ん', icon: 'ti-sort-ascending' },
+                  { id: 'desc',         label: 'ん→あ', icon: 'ti-sort-descending' },
+                  { id: 'random',       label: 'ランダム', icon: 'ti-arrows-shuffle' },
+                ].map(s => (
+                  <button key={s.id} onClick={() => {
+                    if (s.id === 'random') {
+                      const shuffled = [...data.members]
+                      for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]] }
+                      update({ ...data, members: shuffled }, mkLog({ by: adminLabel, type: 'admin', member: '', before: '', after: 'メンバー並び替え: ランダム' }))
+                    } else if (s.id === 'asc') {
+                      update({ ...data, members: [...data.members].sort((a, b) => a.localeCompare(b, 'ja')) }, mkLog({ by: adminLabel, type: 'admin', member: '', before: '', after: 'メンバー並び替え: 昇順' }))
+                    } else if (s.id === 'desc') {
+                      update({ ...data, members: [...data.members].sort((a, b) => b.localeCompare(a, 'ja')) }, mkLog({ by: adminLabel, type: 'admin', member: '', before: '', after: 'メンバー並び替え: 降順' }))
+                    }
+                    setMemberSort(s.id)
+                  }} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 10px', borderRadius: 999, fontSize: 12, border: 'none', cursor: 'pointer', background: memberSort === s.id ? AC : 'var(--color-background-secondary)', color: memberSort === s.id ? '#fff' : 'var(--color-text-secondary)' }}>
+                    <i className={`ti ${s.icon}`} style={{ fontSize: 13 }}></i>{s.label}
+                  </button>
+                ))}
+                <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', width: '100%' }}>※ 登録順では手動で上下に並び替えできます</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {data.members.map((m, i) => (
                 <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -514,7 +624,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     <span style={{ fontWeight: 500 }}>{m}</span>
                   </div>
                   <div style={{ display: 'flex' }}>
-                    {[[-1, 'ti-arrow-up'], [1, 'ti-arrow-down']].map(([d, ic]) => (
+                    {memberSort === 'registration' && [[-1, 'ti-arrow-up'], [1, 'ti-arrow-down']].map(([d, ic]) => (
                       <button key={d} onClick={() => moveMember(i, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === data.members.length - 1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', opacity: ((d === -1 && i === 0) || (d === 1 && i === data.members.length - 1)) ? 0.2 : 1, color: 'var(--color-text-secondary)' }}>
                         <i className={`ti ${ic}`} style={{ fontSize: 14 }}></i>
                       </button>
@@ -710,6 +820,39 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               </div>
               <textarea placeholder="例：次回は衣装持参でお願いします！&#10;空欄にすると非表示になります" value={notice} onChange={e=>setNotice(e.target.value)} style={{ minHeight:80, marginBottom:8 }} />
               <button onClick={saveNotice} style={{ width:'100%', padding:'7px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:13 }}>保存する</button>
+            </Card>
+
+            {/* Tag manager */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                <i className="ti ti-tags" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>タグ管理</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>ここで作ったタグはイベント作成時に選べます</p>
+                </div>
+              </div>
+              {availableTags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+                  {availableTags.map(tag => {
+                    const inUse = data.events.some(e => (e.tags || []).includes(tag))
+                    return (
+                      <span key={tag} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12 }}>
+                        #{tag}
+                        <button onClick={() => {
+                          if (inUse) { if (!confirm(`タグ「${tag}」は使用中のイベントがあります。タグ一覧から削除しますか？（イベント側のタグは残ります）`)) return }
+                          update({ ...data, globalTags: (data.globalTags || []).filter(t => t !== tag) })
+                        }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ACD, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="text" placeholder="新しいタグ（例：ダンス）" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && newTagInput.trim()) { const t = newTagInput.trim().replace(/^#/, ''); if (t && !availableTags.includes(t)) update({ ...data, globalTags: [...(data.globalTags || []), t] }); setNewTagInput('') } }}
+                  style={{ flex: 1 }} />
+                <button onClick={() => { const t = newTagInput.trim().replace(/^#/, ''); if (t && !availableTags.includes(t)) update({ ...data, globalTags: [...(data.globalTags || []), t] }); setNewTagInput('') }} style={{ padding: '0 16px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>追加</button>
+              </div>
             </Card>
 
             {/* Display name */}
@@ -956,6 +1099,25 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             <div style={{ display:'flex', gap:8 }}>
               <button onClick={()=>{doChange(pendingChange);setPendingChange(null)}} style={{ flex:1, padding:'10px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:14 }}>変更する</button>
               <button onClick={()=>setPendingChange(null)} style={{ flex:1, padding:'10px', background:'transparent', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-md)', color:'var(--color-text-secondary)', cursor:'pointer', fontSize:14 }}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Member delete confirmation ── */}
+      {pendingMemberDelete && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.35)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick={()=>setPendingMemberDelete(null)}>
+          <div style={{ background:'var(--color-background-primary)', borderRadius:'var(--border-radius-lg)', padding:24, maxWidth:320, width:'100%', boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }} onClick={e=>e.stopPropagation()}>
+            <div style={{ textAlign:'center', marginBottom:14 }}>
+              <i className="ti ti-alert-triangle" style={{ fontSize:32, color:'var(--color-text-danger)' }}></i>
+            </div>
+            <p style={{ fontWeight:500, fontSize:15, marginBottom:6, textAlign:'center' }}>メンバーを削除しますか？</p>
+            <p style={{ fontSize:13, color:'var(--color-text-secondary)', marginBottom:16, textAlign:'center', lineHeight:1.7 }}>
+              <strong>{pendingMemberDelete}</strong> を削除すると、<br />このメンバーの全イベントの出欠記録も削除されます。<br />この操作は元に戻せません。
+            </p>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={()=>doRemoveMember(pendingMemberDelete)} style={{ flex:1, padding:'10px', background:'var(--color-text-danger)', border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:14 }}>削除する</button>
+              <button onClick={()=>setPendingMemberDelete(null)} style={{ flex:1, padding:'10px', background:'transparent', border:'0.5px solid var(--color-border-secondary)', borderRadius:'var(--border-radius-md)', color:'var(--color-text-secondary)', cursor:'pointer', fontSize:14 }}>キャンセル</button>
             </div>
           </div>
         </div>

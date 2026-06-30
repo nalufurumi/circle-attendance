@@ -606,12 +606,12 @@ export default function DemoPage() {
       {/* CTA footer */}
       <div style={{ padding: 16, marginTop: 8 }}>
         <Card style={{ padding: 18, textAlign: 'center', background: ACB }}>
-          <p style={{ fontWeight: 500, marginBottom: 6, color: ACD }}>気に入ったら無料で導入できます ✨</p>
+          <p style={{ fontWeight: 500, marginBottom: 6, color: ACD }}>気に入ったらいつでも導入できます ✨</p>
           <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 14 }}>
-            完全無料・広告なし。データは各サークルのGoogleスプレッドシートに保存されるので、運営者がデータを完全に管理できます。
+            今はまだ無料・広告なし。データは各サークルのGoogleスプレッドシートに保存されるので、運営者がデータを完全に管理できます。
           </p>
-          <a href="/admin" style={{ display: 'inline-block', padding: '10px 24px', background: AC, color: '#fff', borderRadius: 'var(--border-radius-md)', textDecoration: 'none', fontWeight: 500, fontSize: 14 }}>
-            管理を始める
+          <a href="/report?type=adopt" style={{ display: 'inline-block', padding: '10px 24px', background: AC, color: '#fff', borderRadius: 'var(--border-radius-md)', textDecoration: 'none', fontWeight: 500, fontSize: 14 }}>
+            導入検討の方はこちら
           </a>
         </Card>
       </div>

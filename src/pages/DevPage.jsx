@@ -734,9 +734,10 @@ export default function DevPage() {
             {Array.isArray(bugs) && (
               <>
                 {/* Stats */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
                   {[
                     { label: '合計', val: bugs.length, color: T.textMuted },
+                    { label: '✨ 導入相談', val: bugs.filter(b => b.type === 'adopt').length, color: T.green },
                     { label: 'バグ', val: bugs.filter(b => b.type === 'bug').length, color: T.red },
                     { label: '機能要望', val: bugs.filter(b => b.type === 'feature').length, color: T.blue },
                   ].map(s => (
@@ -748,10 +749,10 @@ export default function DevPage() {
                 </div>
                 {bugs.length === 0 && <p style={{ color: T.textDim, fontSize: 12 }}>報告なし</p>}
                 {bugs.map((b, i) => (
-                  <div key={i} style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 5, padding: '10px 12px', marginBottom: 8 }}>
+                  <div key={i} style={{ background: '#0d111a', border: `1px solid ${b.type === 'adopt' ? T.greenBord : T.border}`, borderRadius: 5, padding: '10px 12px', marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: b.type === 'bug' ? T.redBg : b.type === 'feature' ? '#0f1929' : T.border, color: b.type === 'bug' ? T.red : b.type === 'feature' ? T.blue : T.textDim, border: `1px solid ${b.type === 'bug' ? T.redBord : b.type === 'feature' ? '#1e3a5f' : T.border}` }}>
-                        {b.type === 'bug' ? '🐛 バグ' : b.type === 'feature' ? '💡 要望' : '💬 その他'}
+                      <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 3, background: b.type === 'adopt' ? T.greenBg : b.type === 'bug' ? T.redBg : b.type === 'feature' ? '#0f1929' : T.border, color: b.type === 'adopt' ? T.green : b.type === 'bug' ? T.red : b.type === 'feature' ? T.blue : T.textDim, border: `1px solid ${b.type === 'adopt' ? T.greenBord : b.type === 'bug' ? T.redBord : b.type === 'feature' ? '#1e3a5f' : T.border}` }}>
+                        {b.type === 'adopt' ? '✨ 導入相談' : b.type === 'bug' ? '🐛 バグ' : b.type === 'feature' ? '💡 要望' : '💬 その他'}
                       </span>
                       <span style={{ color: T.textDim, fontSize: 10 }}>{String(b.at).slice(0, 16)}</span>
                     </div>

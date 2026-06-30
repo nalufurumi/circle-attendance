@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 // accent colors come from CSS variables set by applyAccent()
 const AC  = 'var(--accent)'
 const ACB = 'var(--accent-bg)'
@@ -9,6 +10,7 @@ const CONTACT     = 'nalufurumi@gmail.com'
 const BUG_URL     = import.meta.env.VITE_BUG_REPORT_URL || ''
 
 const TYPES = [
+  { id: 'adopt',   label: '✨ 導入相談',   desc: '自分のサークルで使ってみたい' },
   { id: 'bug',     label: '🐛 バグ報告',   desc: '動かない・おかしい挙動' },
   { id: 'feature', label: '💡 機能要望',   desc: 'あったら嬉しい機能' },
   { id: 'other',   label: '💬 その他',     desc: 'ご意見・お問い合わせ' },
@@ -21,7 +23,9 @@ const Card = ({ children, style = {} }) => (
 )
 
 export default function ReportPage() {
-  const [type,    setType]    = useState('bug')
+  const [params] = useSearchParams()
+  const initialType = TYPES.some(t => t.id === params.get('type')) ? params.get('type') : 'bug'
+  const [type,    setType]    = useState(initialType)
   const [message, setMessage] = useState('')
   const [steps,   setSteps]   = useState('')
   const [email,   setEmail]   = useState('')
@@ -108,12 +112,12 @@ export default function ReportPage() {
             <Card style={{ padding: 16, marginBottom: 12 }}>
               <div style={{ marginBottom: 14 }}>
                 <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-                  {type === 'bug' ? '発生した問題を教えてください *' : type === 'feature' ? '要望の内容を教えてください *' : 'お問い合わせ内容 *'}
+                  {type === 'adopt' ? '団体名や人数など、わかる範囲で教えてください *' : type === 'bug' ? '発生した問題を教えてください *' : type === 'feature' ? '要望の内容を教えてください *' : 'お問い合わせ内容 *'}
                 </p>
                 <textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder={type === 'bug' ? '例：メンバーを追加しようとしたら画面が白くなった' : type === 'feature' ? '例：メンバーごとに色を設定したい' : 'ご自由にどうぞ'}
+                  placeholder={type === 'adopt' ? '例：○○大学の△△サークルです。メンバー15人くらいで使ってみたいです' : type === 'bug' ? '例：メンバーを追加しようとしたら画面が白くなった' : type === 'feature' ? '例：メンバーごとに色を設定したい' : 'ご自由にどうぞ'}
                   style={{ width: '100%', minHeight: 100, padding: '8px 10px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
                 />
               </div>
@@ -133,7 +137,7 @@ export default function ReportPage() {
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>返信先メールアドレス（任意）</p>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" style={{ width: '100%', boxSizing: 'border-box' }} />
-                <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 4 }}>記入した場合、開発者から返信することがあります</p>
+                <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 4 }}>{type === 'adopt' ? '導入のご案内のため、できれば記入をお願いします' : '記入した場合、開発者から返信することがあります'}</p>
               </div>
 
               {status === 'error' && (

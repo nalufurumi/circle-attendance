@@ -93,6 +93,7 @@ export default function MemberPage() {
   const [showRequest,     setShowRequest]     = useState(false)
   const [showAllTags,     setShowAllTags]     = useState(false)
   const [expandedEvStatus, setExpandedEvStatus] = useState(new Set())
+  const [evOrder, setEvOrder] = useState('desc')  // 'desc'=新しい順 'asc'=古い順
   const today = todayStr()
   const timerRef = useRef({})
   const origState = useRef({})
@@ -163,7 +164,7 @@ export default function MemberPage() {
   }
 
   const allTags = [...new Set(data.events.flatMap(e=>e.tags||[]))]
-  const sortedEvs = [...data.events].sort((a,b)=>b.date.localeCompare(a.date))
+  const sortedEvs = [...data.events].sort((a,b) => evOrder === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
   const filteredEvs = activeTag ? sortedEvs.filter(e=>e.tags?.includes(activeTag)) : sortedEvs
   const getStats = m => {
     const s = computeStats(data.events, m)
@@ -244,6 +245,12 @@ export default function MemberPage() {
             </div>
 
             {/* Tag filter */}
+            <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:6 }}>
+              <button onClick={()=>setEvOrder(o=>o==='desc'?'asc':'desc')} style={{ fontSize:12, color:'var(--color-text-secondary)', border:'0.5px solid var(--color-border-tertiary)', background:'transparent', borderRadius:999, padding:'3px 10px', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                <i className={`ti ${evOrder==='desc'?'ti-sort-descending':'ti-sort-ascending'}`} style={{ fontSize:13 }}></i>
+                {evOrder==='desc'?'新しい順':'古い順'}
+              </button>
+            </div>
             {allTags.length>0&&(
               <div style={{ marginBottom:12 }}>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>

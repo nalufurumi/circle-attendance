@@ -494,14 +494,21 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       <div style={{ width: 4, height: 36, borderRadius: 2, background: getColor(ev.color), flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</p>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd ? `〜${ev.timeEnd}` : '〜'}` : ''} · {ev.type}</p>
-                        {(() => {
-                          const pc = data.members.filter(m => { const a = ev.attendance?.[m]?.actual; return a === 'present' || a === 'late' }).length
-                          const pp = data.members.filter(m => { const p = ev.attendance?.[m]?.plan; return p === 'attending' || p === 'late' }).length
-                          if (pp === 0 && pc === 0) return null
-                          const isOver = ev.date <= todayStr()
-                          return <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{isOver ? `参加実績 ${pc}人` : `参加予定 ${pp}人`} / {data.members.length}人</span>
-                        })()}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd ? `〜${ev.timeEnd}` : '〜'}` : ''} · {ev.type}</p>
+                          {(() => {
+                            const isOver = ev.date <= todayStr()
+                            const pc = data.members.filter(m => { const a = ev.attendance?.[m]?.actual; return a === 'present' || a === 'late' }).length
+                            const pp = data.members.filter(m => { const p = ev.attendance?.[m]?.plan; return p === 'attending' || p === 'late' }).length
+                            if (isOver && pp > 0) {
+                              const rate = Math.round((pc / pp) * 100)
+                              const rc = rate >= 80 ? 'var(--color-text-success)' : rate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
+                              return <span style={{ fontSize: 12, fontWeight: 600, color: rc }}>{rate}%</span>
+                            }
+                            if (!isOver && pp > 0) return <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>予定 {pp}人</span>
+                            return null
+                          })()}
+                        </div>
                         {ev.tags?.length>0&&<div style={{ display:'flex', gap:3, flexWrap:'wrap', marginTop:3 }}>{ev.tags.map(t=><span key={t} style={{ fontSize:10, padding:'1px 6px', background:ACB, color:ACD, borderRadius:999 }}>#{t}</span>)}</div>}
                       </div>
                     </div>
@@ -670,10 +677,16 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <i className="ti ti-download" style={{ fontSize: 13 }}></i>CSV
               </button>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（開催済の参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）<br />※ 開催前のイベントは実績にカウントされません</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>実績出席率＝（開催済参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）</p>
+              <button onClick={() => setStatOrder(o => o === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12, color: 'var(--color-text-secondary)', border: '0.5px solid var(--color-border-tertiary)', background: 'transparent', borderRadius: 999, padding: '4px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                <i className={`ti ${statOrder === 'desc' ? 'ti-sort-descending' : 'ti-sort-ascending'}`} style={{ fontSize: 13 }}></i>
+                {statOrder === 'desc' ? '出席率: 高→低' : '出席率: 低→高'}
+              </button>
+            </div>
 
             {getStats().length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-chart-bar" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>データがありません</p></div>}
-            {getStats().map((s, rank) => {
+            {(statOrder === 'asc' ? [...getStats()].reverse() : getStats()).map((s, rank) => {
               const thresh = threshold !== '' ? Number(threshold) : null
               const belowAlert = thresh !== null && s.actualRate !== null && s.actualRate < thresh
               const rc = s.actualRate == null ? 'var(--color-text-tertiary)' : s.actualRate >= 80 ? 'var(--color-text-success)' : s.actualRate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'

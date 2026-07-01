@@ -74,7 +74,7 @@ export default function DemoPage() {
   const today = todayStr()
 
   const allTags = [...new Set([...(data.globalTags || []), ...data.events.flatMap(e => e.tags || [])])]
-  const sortedEvs = [...data.events].sort((a, b) => b.date.localeCompare(a.date))
+  const sortedEvs = [...data.events].sort((a, b) => evOrder === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
 
   const addLog = (entry) => setLogs(l => [{ at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }), ...entry }, ...l].slice(0, 50))
 
@@ -230,6 +230,12 @@ export default function DemoPage() {
                   })()}
                 </div>
               </div>
+              <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:6 }}>
+                <button onClick={()=>setEvOrder(o=>o==='desc'?'asc':'desc')} style={{ fontSize:12, color:'var(--color-text-secondary)', border:'0.5px solid var(--color-border-tertiary)', background:'transparent', borderRadius:999, padding:'3px 10px', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                  <i className={`ti ${evOrder==='desc'?'ti-sort-descending':'ti-sort-ascending'}`} style={{ fontSize:13 }}></i>
+                  {evOrder==='desc'?'新しい順':'古い順'}
+                </button>
+              </div>
               {allTags.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -262,8 +268,17 @@ export default function DemoPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                           <div style={{ minWidth: 0 }}>
                             <p style={{ fontWeight: 500, margin: 0 }}>{ev.name}</p>
-                            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
-                        {(() => { const pc = data.members.filter(m => { const a = ev.attendance[m]?.actual; return a==='present'||a==='late' }).length; const pp = data.members.filter(m => { const p = ev.attendance[m]?.plan; return p==='attending'||p==='late' }).length; const isOver = ev.date <= today; if (pp===0&&pc===0) return null; return <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{isOver ? `参加実績 ${pc}人` : `参加予定 ${pp}人`} / {data.members.length}人</span> })()}
+                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
+                          {(() => {
+                            const isOver = ev.date <= today
+                            const pc = data.members.filter(m => { const a = ev.attendance[m]?.actual; return a==='present'||a==='late' }).length
+                            const pp = data.members.filter(m => { const p = ev.attendance[m]?.plan; return p==='attending'||p==='late' }).length
+                            if (isOver && pp > 0) { const rate = Math.round((pc/pp)*100); const rc = rate>=80?'var(--color-text-success)':rate>=60?'var(--color-text-warning)':'var(--color-text-danger)'; return <span style={{ fontSize:12, fontWeight:600, color:rc }}>{rate}%</span> }
+                            if (!isOver && pp > 0) return <span style={{ fontSize:11, color:'var(--color-text-tertiary)' }}>予定 {pp}人</span>
+                            return null
+                          })()}
+                        </div>
                           </div>
                           <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start', background: locked ? 'var(--color-background-secondary)' : (isUpcoming ? ACB : 'var(--color-background-secondary)'), color: locked ? 'var(--color-text-tertiary)' : (isUpcoming ? ACD : 'var(--color-text-tertiary)'), fontWeight: 500 }}>
                             {locked ? '🔒 締切' : (isUpcoming ? '事前入力' : '当日記録')}
@@ -517,8 +532,14 @@ export default function DemoPage() {
 
             {adminTab === 'stats' && (
               <>
-                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 14 }}>実績出席率＝（開催済の参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）<br />※ 開催前のイベントは実績にカウントされません</p>
-                {data.members.map(m => {
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+                  <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>実績出席率＝（開催済参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）</p>
+                  <button onClick={()=>setStatOrder(o=>o==='desc'?'asc':'desc')} style={{ fontSize:12, color:'var(--color-text-secondary)', border:'0.5px solid var(--color-border-tertiary)', background:'transparent', borderRadius:999, padding:'4px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
+                    <i className={`ti ${statOrder==='desc'?'ti-sort-descending':'ti-sort-ascending'}`} style={{ fontSize:13 }}></i>
+                    {statOrder==='desc'?'出席率: 高→低':'出席率: 低→高'}
+                  </button>
+                </div>
+                {(statOrder === 'asc' ? [...data.members].sort((a,b)=>(getStats(a).rate??-1)-(getStats(b).rate??-1)) : [...data.members].sort((a,b)=>(getStats(b).rate??-1)-(getStats(a).rate??-1))).map(m => {
                   const st = getStats(m)
                   const thresh = data.alertThreshold
                   const below = thresh != null && st.rate != null && st.rate < thresh

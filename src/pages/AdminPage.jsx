@@ -194,6 +194,8 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [tagInput,     setTagInput]     = useState('')
   const [editingEvId,  setEditingEvId]  = useState(null)
   const [memberSort,   setMemberSort]   = useState('registration')  // registration|asc|desc|random
+  const [memberSearch, setMemberSearch] = useState('')   // filter member list
+  const [evSearch,     setEvSearch]     = useState('')   // filter names inside expanded event
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
   const [newTagInput,  setNewTagInput]  = useState('')
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
@@ -487,12 +489,19 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               const cnts = {}; data.members.forEach(m => { const s = ev.attendance?.[m]; if (s && s !== 'unknown') cnts[s] = (cnts[s] || 0) + 1 })
               return (
                 <Card key={ev.id} style={{ marginBottom: 8, overflow: 'hidden' }}>
-                  <div onClick={() => setExpandedEv(isOpen ? null : ev.id)} style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div onClick={() => { setExpandedEv(isOpen ? null : ev.id); setEvSearch('') }} style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <div style={{ width: 4, height: 36, borderRadius: 2, background: getColor(ev.color), flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</p>
                         <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd ? `〜${ev.timeEnd}` : '〜'}` : ''} · {ev.type}</p>
+                        {(() => {
+                          const pc = data.members.filter(m => { const a = ev.attendance?.[m]?.actual; return a === 'present' || a === 'late' }).length
+                          const pp = data.members.filter(m => { const p = ev.attendance?.[m]?.plan; return p === 'attending' || p === 'late' }).length
+                          if (pp === 0 && pc === 0) return null
+                          const isOver = ev.date <= todayStr()
+                          return <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{isOver ? `参加実績 ${pc}人` : `参加予定 ${pp}人`} / {data.members.length}人</span>
+                        })()}
                         {ev.tags?.length>0&&<div style={{ display:'flex', gap:3, flexWrap:'wrap', marginTop:3 }}>{ev.tags.map(t=><span key={t} style={{ fontSize:10, padding:'1px 6px', background:ACB, color:ACD, borderRadius:999 }}>#{t}</span>)}</div>}
                       </div>
                     </div>
@@ -509,6 +518,12 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                     <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '12px 14px' }}>
                       {data.members.length === 0 ? <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', fontSize: 13 }}>メンバーを先に登録してください</p> : (
                         <>
+                          {/* Name search inside event */}
+                          <div style={{ position: 'relative', marginBottom: 10 }}>
+                            <i className="ti ti-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', fontSize: 13, pointerEvents: 'none' }}></i>
+                            <input type="text" placeholder="メンバーを絞り込む..." value={evSearch} onChange={e => setEvSearch(e.target.value)} style={{ paddingLeft: 30, fontSize: 13, padding: '6px 10px 6px 30px' }} />
+                          </div>
+
                           {/* Plan / Actual mode toggle */}
                           {(() => {
                             const mode = evModes[ev.id] || (ev.date > todayStr() ? 'plan' : 'actual')
@@ -582,6 +597,12 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 </div>
               </Card>
             )}
+            {/* Member search */}
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <i className="ti ti-search" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', fontSize: 14, pointerEvents: 'none' }}></i>
+              <input type="text" placeholder="メンバーを検索..." value={memberSearch} onChange={e => setMemberSearch(e.target.value)} style={{ paddingLeft: 34 }} />
+            </div>
+
             {data.members.length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-users" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>メンバーがいません</p></div>}
 
             {/* Sort controls */}
@@ -592,6 +613,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   { id: 'registration', label: '登録順', icon: 'ti-list-numbers' },
                   { id: 'asc',          label: 'あ→ん', icon: 'ti-sort-ascending' },
                   { id: 'desc',         label: 'ん→あ', icon: 'ti-sort-descending' },
+                  { id: 'rate',         label: '出席率▼', icon: 'ti-chart-bar' },
                   { id: 'random',       label: 'ランダム', icon: 'ti-arrows-shuffle' },
                 ].map(s => (
                   <button key={s.id} onClick={() => {
@@ -603,6 +625,9 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       update({ ...data, members: [...data.members].sort((a, b) => a.localeCompare(b, 'ja')) }, mkLog({ by: adminLabel, type: 'admin', member: '', before: '', after: 'メンバー並び替え: 昇順' }))
                     } else if (s.id === 'desc') {
                       update({ ...data, members: [...data.members].sort((a, b) => b.localeCompare(a, 'ja')) }, mkLog({ by: adminLabel, type: 'admin', member: '', before: '', after: 'メンバー並び替え: 降順' }))
+                    } else if (s.id === 'rate') {
+                      const byRate = [...data.members].sort((a, b) => (computeStats(data.events, b).actualRate ?? -1) - (computeStats(data.events, a).actualRate ?? -1))
+                      update({ ...data, members: byRate }, mkLog({ by: adminLabel, type: 'admin', member: '', before: '', after: 'メンバー並び替え: 出席率順' }))
                     }
                     setMemberSort(s.id)
                   }} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 10px', borderRadius: 999, fontSize: 12, border: 'none', cursor: 'pointer', background: memberSort === s.id ? AC : 'var(--color-background-secondary)', color: memberSort === s.id ? '#fff' : 'var(--color-text-secondary)' }}>
@@ -614,7 +639,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {data.members.map((m, i) => (
+              {data.members.filter(m => m.includes(memberSearch)).map((m, i) => (
                 <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{m.slice(0, 1)}</div>
@@ -646,16 +671,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               </button>
             </div>
             <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>実績出席率＝（開催済の参加＋遅刻）÷（開催済で参加/遅刻予定だった回数）<br />※ 開催前のイベントは実績にカウントされません</p>
-            {/* Alert threshold */}
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'8px 12px', background:'var(--color-background-secondary)', borderRadius:'var(--border-radius-md)' }}>
-              <i className="ti ti-bell" style={{ fontSize:14, color:'var(--color-text-secondary)' }}></i>
-              <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>実績出席率アラート</span>
-              <input type="number" min="0" max="100" placeholder="例：60" value={threshold}
-                onChange={e=>setThreshold(e.target.value)}
-                onBlur={e=>saveThreshold(e.target.value)}
-                style={{ width:60, fontSize:13, padding:'4px 8px', marginLeft:'auto' }} />
-              <span style={{ fontSize:12, color:'var(--color-text-secondary)' }}>% 未満を強調</span>
-            </div>
+
             {getStats().length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-chart-bar" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>データがありません</p></div>}
             {getStats().map((s, rank) => {
               const thresh = threshold !== '' ? Number(threshold) : null
@@ -826,6 +842,25 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               </div>
               <textarea placeholder="例：次回は衣装持参でお願いします！&#10;空欄にすると非表示になります" value={notice} onChange={e=>setNotice(e.target.value)} style={{ minHeight:80, marginBottom:8 }} />
               <button onClick={saveNotice} style={{ width:'100%', padding:'7px', background:AC, border:'none', borderRadius:'var(--border-radius-md)', color:'#fff', cursor:'pointer', fontWeight:500, fontSize:13 }}>保存する</button>
+            </Card>
+
+            {/* Alert threshold - moved from stats */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+                <i className="ti ti-bell" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>出席率アラート</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>設定した%を下回ったメンバーを統計画面で赤くハイライトします</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input type="number" min="0" max="100" placeholder="例：60" value={threshold}
+                  onChange={e => setThreshold(e.target.value)}
+                  onBlur={e => saveThreshold(e.target.value)}
+                  style={{ width: 70, fontSize: 14, fontWeight: 500 }} />
+                <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>% 未満を強調</span>
+                {threshold !== '' && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>（統計タブで確認）</span>}
+              </div>
             </Card>
 
             {/* Tag manager */}

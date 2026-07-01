@@ -98,9 +98,9 @@ const slides = [
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
             { icon: '📱', label: 'URLで即入力', desc: 'アプリ不要' },
-            { icon: '📊', label: '出席率自動計算', desc: '実績・予測の2軸' },
-            { icon: '🏷️', label: 'タグで整理', desc: '大人数でも迷わない' },
-            { icon: '📝', label: '変更ログ', desc: '全操作を記録' },
+            { icon: '📊', label: '出席率自動計算', desc: '実績・予測 + アラート' },
+            { icon: '🏷️', label: 'タグ検索', desc: '絞り込みで即発見' },
+            { icon: '👥', label: '参加状況を共有', desc: 'メンバー同士で確認' },
             { icon: '🔒', label: 'データ完全管理', desc: 'あなたのGoogleシート' },
             { icon: '🎨', label: 'テーマカラー', desc: 'サークルカラーに対応' },
           ].map(f => (

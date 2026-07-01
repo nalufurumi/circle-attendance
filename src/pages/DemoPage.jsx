@@ -231,9 +231,18 @@ export default function DemoPage() {
                 </div>
               </div>
               {allTags.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                  <button onClick={() => setActiveTag(null)} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', border: 'none', background: !activeTag ? AC : 'var(--color-background-secondary)', color: !activeTag ? '#fff' : 'var(--color-text-secondary)' }}>#すべて</button>
-                  {allTags.map(tag => <button key={tag} onClick={() => setActiveTag(activeTag === tag ? null : tag)} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', border: 'none', background: activeTag === tag ? AC : 'var(--color-background-secondary)', color: activeTag === tag ? '#fff' : 'var(--color-text-secondary)' }}>#{tag}</button>)}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button onClick={() => setActiveTag(null)} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', border: 'none', background: !activeTag ? AC : 'var(--color-background-secondary)', color: !activeTag ? '#fff' : 'var(--color-text-secondary)' }}>#すべて</button>
+                    {(showAllTags ? allTags : allTags.slice(0, 5)).map(tag => (
+                      <button key={tag} onClick={() => setActiveTag(activeTag === tag ? null : tag)} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', border: 'none', background: activeTag === tag ? AC : 'var(--color-background-secondary)', color: activeTag === tag ? '#fff' : 'var(--color-text-secondary)' }}>#{tag}</button>
+                    ))}
+                    {allTags.length > 5 && (
+                      <button onClick={() => setShowAllTags(s => !s)} style={{ padding: '3px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', border: '0.5px solid var(--color-border-tertiary)', background: 'transparent', color: 'var(--color-text-tertiary)' }}>
+                        {showAllTags ? '▲ 閉じる' : `＋その他 ${allTags.length - 5}個 ▾`}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
               {sortedEvs.filter(e => !activeTag || e.tags?.includes(activeTag)).map(ev => {
@@ -254,6 +263,7 @@ export default function DemoPage() {
                           <div style={{ minWidth: 0 }}>
                             <p style={{ fontWeight: 500, margin: 0 }}>{ev.name}</p>
                             <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
+                        {(() => { const pc = data.members.filter(m => { const a = ev.attendance[m]?.actual; return a==='present'||a==='late' }).length; const pp = data.members.filter(m => { const p = ev.attendance[m]?.plan; return p==='attending'||p==='late' }).length; const isOver = ev.date <= today; if (pp===0&&pc===0) return null; return <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{isOver ? `参加実績 ${pc}人` : `参加予定 ${pp}人`} / {data.members.length}人</span> })()}
                           </div>
                           <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start', background: locked ? 'var(--color-background-secondary)' : (isUpcoming ? ACB : 'var(--color-background-secondary)'), color: locked ? 'var(--color-text-tertiary)' : (isUpcoming ? ACD : 'var(--color-text-tertiary)'), fontWeight: 500 }}>
                             {locked ? '🔒 締切' : (isUpcoming ? '事前入力' : '当日記録')}
@@ -285,6 +295,44 @@ export default function DemoPage() {
                           </div>
                         )}
                         {locked && att.reason && <p style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>理由: {att.reason}</p>}
+
+                        {/* Other members' status */}
+                        {data.members.length > 1 && (() => {
+                          const others = data.members.filter(m => m !== selMember)
+                          const sm2 = isUpcoming ? PLAN_STATUS : ACTUAL_STATUS
+                          const fld2 = isUpcoming ? 'plan' : 'actual'
+                          const tally = {}
+                          others.forEach(m => { const st = ev.attendance[m]?.[fld2] ?? null; const k = st || 'null'; if (!tally[k]) tally[k] = []; tally[k].push(m) })
+                          const topStates = (isUpcoming ? ['attending','late','absent','undecided'] : ['present','late','absent','unknown']).filter(k => tally[k]?.length > 0)
+                          const expanded = expandedEvStatus.has(ev.id)
+                          const toggle = () => setExpandedEvStatus(prev => { const n = new Set(prev); n.has(ev.id) ? n.delete(ev.id) : n.add(ev.id); return n })
+                          return (
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  {topStates.slice(0, 3).map(k => <span key={k} style={{ fontSize: 11, color: sm2[k]?.text || 'var(--color-text-tertiary)' }}>{sm2[k]?.icon} {sm2[k]?.short} {tally[k].length}人</span>)}
+                                  {tally['null']?.length > 0 && <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>未入力 {tally['null'].length}人</span>}
+                                </div>
+                                <button onClick={toggle} style={{ fontSize: 11, color: AC, border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}>{expanded ? '▲ 閉じる' : `全員を見る (${others.length}人)`}</button>
+                              </div>
+                              {expanded && (
+                                <div style={{ marginTop: 8 }}>
+                                  {topStates.concat(tally['null']?.length > 0 ? ['null'] : []).map(k => {
+                                    const ms = tally[k] || []; const s2 = sm2[k] || sm2[null]
+                                    return (
+                                      <div key={k} style={{ marginBottom: 6 }}>
+                                        <p style={{ fontSize: 11, color: s2.text, fontWeight: 500, marginBottom: 4 }}>{s2.icon} {s2.short || '未入力'} ({ms.length}人)</p>
+                                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                          {ms.map(m => <span key={m} style={{ fontSize: 12, padding: '2px 9px', background: 'var(--color-background-secondary)', borderRadius: 999 }}>{m}{ev.attendance[m]?.reason ? ` (${ev.attendance[m].reason})` : ''}</span>)}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   </Card>
@@ -359,7 +407,7 @@ export default function DemoPage() {
                 : [['present', '参加'], ['late', '遅刻'], ['absent', '不参加'], ['unknown', '不明'], [null, '未入力']]
               return (
                 <Card key={ev.id} style={{ marginBottom: 8, overflow: 'hidden' }}>
-                  <div onClick={() => setExpandedEv(isOpen ? null : ev.id)} style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div onClick={() => { setExpandedEv(isOpen ? null : ev.id); setEvSearch('') }} style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <div style={{ width: 4, height: 36, borderRadius: 2, background: getColor(ev.color), flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
@@ -372,11 +420,15 @@ export default function DemoPage() {
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '12px 14px' }}>
+                      <div style={{ position: 'relative', marginBottom: 10 }}>
+                        <i className="ti ti-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', fontSize: 13, pointerEvents: 'none' }}></i>
+                        <input type="text" placeholder="メンバーを絞り込む..." value={evSearch} onChange={e => setEvSearch(e.target.value)} style={{ paddingLeft: 30, fontSize: 13, padding: '6px 10px 6px 30px' }} />
+                      </div>
                       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
                         {['plan', 'actual'].map(m => <button key={m} onClick={() => setEvMode({ ...evMode, [ev.id]: m })} style={{ padding: '4px 12px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 12, background: mode === m ? AC : 'var(--color-background-secondary)', color: mode === m ? '#fff' : 'var(--color-text-secondary)' }}>{m === 'plan' ? '事前入力' : '当日記録'}</button>)}
                       </div>
                       {statusOrder.map(([st, groupLabel]) => {
-                        const members = data.members.filter(m => (ev.attendance[m]?.[mode] ?? null) === st)
+                        const members = data.members.filter(m => m.includes(evSearch)).filter(m => (ev.attendance[m]?.[mode] ?? null) === st)
                         if (members.length === 0) return null
                         const s = sm[st] || sm[null]
                         return (
@@ -414,6 +466,11 @@ export default function DemoPage() {
 
             {adminTab === 'members' && (
               <>
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <i className="ti ti-search" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', fontSize: 14, pointerEvents: 'none' }}></i>
+                  <input type="text" placeholder="メンバーを検索..." value={memberSearch} onChange={e => setMemberSearch(e.target.value)} style={{ paddingLeft: 34 }} />
+                </div>
+
                 {data.members.length > 1 && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>並び替え:</span>
@@ -421,10 +478,13 @@ export default function DemoPage() {
                       { id: 'registration', label: '登録順', icon: 'ti-list-numbers' },
                       { id: 'asc', label: 'あ→ん', icon: 'ti-sort-ascending' },
                       { id: 'desc', label: 'ん→あ', icon: 'ti-sort-descending' },
+                      { id: 'rate', label: '出席率▼', icon: 'ti-chart-bar' },
                       { id: 'random', label: 'ランダム', icon: 'ti-arrows-shuffle' },
                     ].map(s => (
                       <button key={s.id} onClick={() => {
-                        if (s.id === 'random') {
+                        if (s.id === 'rate') {
+                          const byRate = [...data.members].sort((a, b) => (getStats(b).rate ?? -1) - (getStats(a).rate ?? -1)); setData(d => ({ ...d, members: byRate })); setMemberSort('rate')
+                        } else if (s.id === 'random') {
                           const shuffled = [...data.members]
                           for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]] }
                           setData(d => ({ ...d, members: shuffled }))
@@ -441,7 +501,7 @@ export default function DemoPage() {
                   </div>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {data.members.map((m) => (
+                  {data.members.filter(m => m.includes(memberSearch)).map((m) => (
                     <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Avatar name={m} /><span style={{ fontWeight: 500 }}>{m}</span>

@@ -90,7 +90,9 @@ export default function MemberPage() {
   const [search,      setSearch]      = useState('')
   const [activeTag,   setActiveTag]   = useState(null)
   const [reasonDraft, setReasonDraft] = useState({})
-  const [showRequest, setShowRequest] = useState(false)
+  const [showRequest,     setShowRequest]     = useState(false)
+  const [showAllTags,     setShowAllTags]     = useState(false)
+  const [expandedEvStatus, setExpandedEvStatus] = useState(new Set())
   const today = todayStr()
   const timerRef = useRef({})
   const origState = useRef({})
@@ -243,9 +245,18 @@ export default function MemberPage() {
 
             {/* Tag filter */}
             {allTags.length>0&&(
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:12 }}>
-                <TagChip label="すべて" active={!activeTag} onClick={()=>setActiveTag(null)} />
-                {allTags.map(tag=><TagChip key={tag} label={tag} active={activeTag===tag} onClick={()=>setActiveTag(activeTag===tag?null:tag)} />)}
+              <div style={{ marginBottom:12 }}>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  <TagChip label="すべて" active={!activeTag} onClick={()=>setActiveTag(null)} />
+                  {(showAllTags ? allTags : allTags.slice(0,5)).map(tag=>(
+                    <TagChip key={tag} label={tag} active={activeTag===tag} onClick={()=>setActiveTag(activeTag===tag?null:tag)} />
+                  ))}
+                  {allTags.length>5&&(
+                    <button onClick={()=>setShowAllTags(s=>!s)} style={{ padding:'3px 10px', borderRadius:999, fontSize:12, cursor:'pointer', border:'0.5px solid var(--color-border-tertiary)', background:'transparent', color:'var(--color-text-tertiary)' }}>
+                      {showAllTags?'▲ 閉じる':`＋その他 ${allTags.length-5}個 ▾`}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -321,6 +332,53 @@ export default function MemberPage() {
                       {locked && att.reason && (
                         <p style={{ marginTop:6, fontSize:12, color:'var(--color-text-secondary)' }}>理由: {att.reason}</p>
                       )}
+
+                      {/* Other members' status – collapsible summary */}
+                      {data.members.length > 1 && (() => {
+                        const others = data.members.filter(m => m !== selMember)
+                        const sm2 = isUpcoming ? PLAN_STATUS : ACTUAL_STATUS
+                        const fld2 = isUpcoming ? 'plan' : 'actual'
+                        const tally = {}
+                        others.forEach(m => { const st = ev.attendance?.[m]?.[fld2] ?? null; const k = st || 'null'; if (!tally[k]) tally[k] = []; tally[k].push(m) })
+                        const topStates = (isUpcoming ? ['attending','late','absent','undecided'] : ['present','late','absent','unknown']).filter(k => tally[k]?.length > 0)
+                        const expanded = expandedEvStatus.has(ev.id)
+                        const toggle = () => setExpandedEvStatus(prev => { const n = new Set(prev); n.has(ev.id) ? n.delete(ev.id) : n.add(ev.id); return n })
+                        return (
+                          <div style={{ marginTop:10, paddingTop:10, borderTop:'0.5px solid var(--color-border-tertiary)' }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                                {topStates.slice(0,3).map(k => (
+                                  <span key={k} style={{ fontSize:11, color: sm2[k]?.text || 'var(--color-text-tertiary)' }}>
+                                    {sm2[k]?.icon} {sm2[k]?.short} {tally[k].length}人
+                                  </span>
+                                ))}
+                                {tally['null']?.length > 0 && <span style={{ fontSize:11, color:'var(--color-text-tertiary)' }}>未入力 {tally['null'].length}人</span>}
+                              </div>
+                              <button onClick={toggle} style={{ fontSize:11, color:AC, border:'none', background:'transparent', cursor:'pointer', flexShrink:0, padding:'2px 4px' }}>
+                                {expanded ? '▲ 閉じる' : `全員を見る (${others.length}人)`}
+                              </button>
+                            </div>
+                            {expanded && (
+                              <div style={{ marginTop:8 }}>
+                                {topStates.concat(tally['null']?.length > 0 ? ['null'] : []).map(k => {
+                                  const ms = tally[k] || []; const s2 = sm2[k] || sm2[null]
+                                  return (
+                                    <div key={k} style={{ marginBottom:6 }}>
+                                      <p style={{ fontSize:11, color:s2.text, fontWeight:500, marginBottom:4 }}>{s2.icon} {s2.short || '未入力'} ({ms.length}人)</p>
+                                      <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                                        {ms.map(m => {
+                                          const reason = ev.attendance?.[m]?.reason
+                                          return <span key={m} style={{ fontSize:12, padding:'2px 9px', background:'var(--color-background-secondary)', borderRadius:999, color:'var(--color-text-primary)' }}>{m}{reason ? ` (${reason})` : ''}</span>
+                                        })}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 </Card>

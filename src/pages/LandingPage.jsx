@@ -115,11 +115,11 @@ export default function LandingPage() {
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, lineHeight: 1.3 }}>必要なものが、全部そろってる</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FeatureCard icon="📱" title="URLで即アクセス" desc="メンバーはログイン不要。共有URLを開くだけで出欠入力できます" />
-            <FeatureCard icon="📊" title="出席率を自動計算" desc="実績・予測の2軸で把握。閾値アラートで見落としゼロ" />
-            <FeatureCard icon="🏷️" title="タグで整理" desc="練習・本番・ダンスなどタグで絞り込み。大人数でも迷わない" />
+            <FeatureCard icon="📊" title="出席率を自動計算" desc="実績・予測の2軸で把握。アラート閾値で要フォローのメンバーを即把握" />
+            <FeatureCard icon="🏷️" title="タグ検索で絞り込み" desc="タグで練習・本番・ダンスを分類。メンバーが自分に関係するイベントだけ確認できます" />
             <FeatureCard icon="🔒" title="データはあなたのもの" desc="Google スプレッドシートに直接保存。第三者のサーバーは使いません" />
-            <FeatureCard icon="📝" title="変更ログで透明性" desc="誰がいつ何を変えたか全記録。管理者・メンバー両方の操作を追跡" />
-            <FeatureCard icon="🎨" title="テーマカラー自由" desc="サークルカラーに合わせて変更可。メンバー画面にも即反映" />
+            <FeatureCard icon="👥" title="全員の参加状況を確認" desc="メンバーも他の参加者の出欠状況を確認可能。当日の参加人数がすぐわかります" />
+            <FeatureCard icon="🎨" title="サークルカラーに統一" desc="8色のプリセット＋カラーコード直接入力。メンバー画面にも即反映" />
           </div>
         </div>
       </Section>

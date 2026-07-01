@@ -163,7 +163,11 @@ export default function MemberPage() {
     setData(nd); try { await saveData(scriptUrl, nd) } catch {}
   }
 
-  const allTags = [...new Set(data.events.flatMap(e=>e.tags||[]))]
+  // Use globalTags order first, then append any event tags not in globalTags
+  const allTags = [
+    ...(data.globalTags || []).filter(t => data.events.some(e => e.tags?.includes(t))),
+    ...data.events.flatMap(e=>e.tags||[]).filter(t => !(data.globalTags||[]).includes(t))
+  ].filter((t,i,a)=>a.indexOf(t)===i)
   const sortedEvs = [...data.events].sort((a,b) => evOrder === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
   const filteredEvs = activeTag ? sortedEvs.filter(e=>e.tags?.includes(activeTag)) : sortedEvs
   const getStats = m => {

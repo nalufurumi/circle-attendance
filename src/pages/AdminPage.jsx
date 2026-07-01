@@ -197,6 +197,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [memberSearch, setMemberSearch] = useState('')   // filter member list
   const [evSearch,     setEvSearch]     = useState('')   // filter names inside expanded event
   const [statOrder,    setStatOrder]    = useState('desc') // 'desc'=高→低 'asc'=低→高
+  const [renamingMember, setRenamingMember] = useState(null) // member name being renamed
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
   const [newTagInput,  setNewTagInput]  = useState('')
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
@@ -687,7 +688,11 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             </div>
 
             {getStats().length === 0 && <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-text-secondary)' }}><i className="ti ti-chart-bar" style={{ fontSize: 36 }}></i><p style={{ marginTop: 8 }}>データがありません</p></div>}
-            {(statOrder === 'asc' ? [...getStats()].reverse() : getStats()).map((s, rank) => {
+            {[...getStats()].sort((a, b) =>
+              statOrder === 'desc'
+                ? (b.actualRate ?? -1) - (a.actualRate ?? -1)
+                : (a.actualRate ?? 999) - (b.actualRate ?? 999)
+            ).map((s, rank) => {
               const thresh = threshold !== '' ? Number(threshold) : null
               const belowAlert = thresh !== null && s.actualRate !== null && s.actualRate < thresh
               const rc = s.actualRate == null ? 'var(--color-text-tertiary)' : s.actualRate >= 80 ? 'var(--color-text-success)' : s.actualRate >= 60 ? 'var(--color-text-warning)' : 'var(--color-text-danger)'
@@ -887,17 +892,24 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 </div>
               </div>
               {availableTags.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
-                  {availableTags.map(tag => {
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10 }}>
+                  {(data.globalTags || []).map((tag, i, arr) => {
                     const inUse = data.events.some(e => (e.tags || []).includes(tag))
                     return (
-                      <span key={tag} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12 }}>
-                        #{tag}
-                        <button onClick={() => {
-                          if (inUse) { if (!confirm(`タグ「${tag}」は使用中のイベントがあります。タグ一覧から削除しますか？（イベント側のタグは残ります）`)) return }
-                          update({ ...data, globalTags: (data.globalTags || []).filter(t => t !== tag) })
-                        }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ACD, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
-                      </span>
+                      <div key={tag} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <button onClick={() => { if (i===0) return; const g=[...arr]; [g[i-1],g[i]]=[g[i],g[i-1]]; update({ ...data, globalTags: g }) }} disabled={i===0} style={{ border:'none', background:'transparent', cursor:i===0?'default':'pointer', color:i===0?'var(--color-border-secondary)':'var(--color-text-secondary)', padding:0, fontSize:11, lineHeight:1.2 }}>▲</button>
+                          <button onClick={() => { if (i===arr.length-1) return; const g=[...arr]; [g[i],g[i+1]]=[g[i+1],g[i]]; update({ ...data, globalTags: g }) }} disabled={i===arr.length-1} style={{ border:'none', background:'transparent', cursor:i===arr.length-1?'default':'pointer', color:i===arr.length-1?'var(--color-border-secondary)':'var(--color-text-secondary)', padding:0, fontSize:11, lineHeight:1.2 }}>▼</button>
+                        </div>
+                        <span style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 12px', background:ACB, color:ACD, borderRadius:999, fontSize:12, flex:1 }}>
+                          #{tag}
+                          {!inUse && <span style={{ fontSize:10, opacity:0.6, marginLeft:2 }}>未使用</span>}
+                          <button onClick={() => {
+                            if (inUse) { if (!confirm(`タグ「${tag}」は使用中のイベントがあります。タグ一覧から削除しますか？（イベント側のタグは残ります）`)) return }
+                            update({ ...data, globalTags: (data.globalTags || []).filter(t => t !== tag) })
+                          }} style={{ border:'none', background:'transparent', cursor:'pointer', color:ACD, fontSize:13, padding:0, lineHeight:1, marginLeft:'auto' }}>×</button>
+                        </span>
+                      </div>
                     )
                   })}
                 </div>

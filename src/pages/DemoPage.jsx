@@ -73,12 +73,16 @@ export default function DemoPage() {
   const [expandedEvStatus, setExpandedEvStatus] = useState(new Set())
   const [evOrder,          setEvOrder]          = useState('desc')
   const [statOrder,        setStatOrder]        = useState('desc')
+  const [renamingMember, setRenamingMember] = useState(null)
   const [pendingChange, setPendingChange] = useState(null)
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
   const [reasonDraft, setReasonDraft] = useState({})
   const today = todayStr()
 
-  const allTags = [...new Set([...(data.globalTags || []), ...data.events.flatMap(e => e.tags || [])])]
+  const allTags = [
+    ...(data.globalTags || []).filter(t => data.events.some(e => e.tags?.includes(t))),
+    ...data.events.flatMap(e=>e.tags||[]).filter(t => !(data.globalTags||[]).includes(t))
+  ].filter((t,i,a)=>a.indexOf(t)===i)
   const sortedEvs = [...data.events].sort((a, b) => evOrder === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
 
   const addLog = (entry) => setLogs(l => [{ at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }), ...entry }, ...l].slice(0, 50))
@@ -522,13 +526,43 @@ export default function DemoPage() {
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {data.members.filter(m => m.includes(memberSearch)).map((m) => (
-                    <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Avatar name={m} /><span style={{ fontWeight: 500 }}>{m}</span>
+                    <Card key={m} style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <Avatar name={m} />
+                          {renamingMember === m ? (
+                            <input autoFocus defaultValue={m}
+                              onBlur={e => {
+                                const newName = e.target.value.trim()
+                                if (newName && newName !== m && !data.members.includes(newName)) {
+                                  setData(d => {
+                                    const members = d.members.map(x => x === m ? newName : x)
+                                    const events = d.events.map(ev => {
+                                      const att = { ...ev.attendance }
+                                      if (att[m] !== undefined) { att[newName] = att[m]; delete att[m] }
+                                      return { ...ev, attendance: att }
+                                    })
+                                    return { ...d, members, events }
+                                  })
+                                  addLog({ by: '管理者', type: 'admin', eventName: '', member: m, before: m, after: newName })
+                                }
+                                setRenamingMember(null)
+                              }}
+                              onKeyDown={e => { if (e.key==='Enter') e.target.blur(); if (e.key==='Escape') setRenamingMember(null) }}
+                              style={{ fontWeight: 500, fontSize: 14, width: 110, padding: '2px 8px' }} />
+                          ) : (
+                            <span style={{ fontWeight: 500 }}>{m}</span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => setRenamingMember(renamingMember === m ? null : m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-secondary)' }}>
+                            <i className="ti ti-pencil" style={{ fontSize: 14 }}></i>
+                          </button>
+                          <button onClick={() => setPendingMemberDelete(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
+                            <i className="ti ti-x" style={{ fontSize: 14 }}></i>
+                          </button>
+                        </div>
                       </div>
-                      <button onClick={() => setPendingMemberDelete(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
-                        <i className="ti ti-x" style={{ fontSize: 14 }}></i>
-                      </button>
                     </Card>
                   ))}
                 </div>
@@ -544,7 +578,11 @@ export default function DemoPage() {
                     {statOrder==='desc'?'出席率: 高→低':'出席率: 低→高'}
                   </button>
                 </div>
-                {(statOrder === 'asc' ? [...data.members].sort((a,b)=>(getStats(a).rate??-1)-(getStats(b).rate??-1)) : [...data.members].sort((a,b)=>(getStats(b).rate??-1)-(getStats(a).rate??-1))).map(m => {
+                {[...data.members].sort((a, b) =>
+                  statOrder === 'desc'
+                    ? (getStats(b).rate ?? -1) - (getStats(a).rate ?? -1)
+                    : (getStats(a).rate ?? 999) - (getStats(b).rate ?? 999)
+                ).map(m => {
                   const st = getStats(m)
                   const thresh = data.alertThreshold
                   const below = thresh != null && st.rate != null && st.rate < thresh
@@ -669,12 +707,18 @@ export default function DemoPage() {
                     <p style={{ fontWeight: 500, margin: 0 }}>タグ管理</p>
                   </div>
                   {allTags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
-                      {allTags.map(tag => (
-                        <span key={tag} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12 }}>
-                          #{tag}
-                          <button onClick={() => setData(d => ({ ...d, globalTags: (d.globalTags || []).filter(t => t !== tag) }))} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ACD, fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
-                        </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10 }}>
+                      {(data.globalTags || []).filter(t => allTags.includes(t)).map((tag, i, arr) => (
+                        <div key={tag} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <button onClick={() => { if (i===0) return; const g=[...arr]; [g[i-1],g[i]]=[g[i],g[i-1]]; setData(d=>({...d,globalTags:g})) }} disabled={i===0} style={{ border:'none', background:'transparent', cursor:i===0?'default':'pointer', color:i===0?'var(--color-border-secondary)':'var(--color-text-secondary)', padding:0, fontSize:11 }}>▲</button>
+                            <button onClick={() => { if (i===arr.length-1) return; const g=[...arr]; [g[i],g[i+1]]=[g[i+1],g[i]]; setData(d=>({...d,globalTags:g})) }} disabled={i===arr.length-1} style={{ border:'none', background:'transparent', cursor:i===arr.length-1?'default':'pointer', color:i===arr.length-1?'var(--color-border-secondary)':'var(--color-text-secondary)', padding:0, fontSize:11 }}>▼</button>
+                          </div>
+                          <span style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', background:ACB, color:ACD, borderRadius:999, fontSize:12, flex:1 }}>
+                            #{tag}
+                            <button onClick={() => setData(d => ({ ...d, globalTags: (d.globalTags || []).filter(t => t !== tag) }))} style={{ border:'none', background:'transparent', cursor:'pointer', color:ACD, fontSize:13, padding:0, lineHeight:1, marginLeft:'auto' }}>×</button>
+                          </span>
+                        </div>
                       ))}
                     </div>
                   )}

@@ -438,6 +438,24 @@ export default function DevPage() {
   // ── QR code (via external image API, URL-encoded) ──
   const memberUrl = scriptUrl ? `${window.location.origin}/member?c=${btoa(scriptUrl)}` : ''
 
+  // ── Self-test runner ──
+  const [testResults, setTestResults] = useState(null)
+  const [testRunning, setTestRunning] = useState(false)
+
+  const runSelfTests = async () => {
+    setTestRunning(true)
+    setTestResults(null)
+    try {
+      const { runLogicTests, runRenderTests } = await import('../lib/selftest.js')
+      const logic = runLogicTests()
+      const render = await runRenderTests()
+      setTestResults({ logic, render, at: new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) })
+    } catch (e) {
+      setTestResults({ _error: e.message })
+    }
+    setTestRunning(false)
+  }
+
   const runRestore = async () => {
     if (!scriptUrl || !importJson.trim()) return
     try {
@@ -493,6 +511,7 @@ export default function DevPage() {
     { id: 'logs',      label: 'ログ' },
     { id: 'bugs',      label: '🐛 バグ報告' },
     { id: 'cache',     label: 'キャッシュ' },
+    { id: 'selftest',  label: '✅ 自動テスト' },
     { id: 'build',     label: 'ビルド' },
   ]
 
@@ -991,6 +1010,75 @@ export default function DevPage() {
                 <p style={{ color: T.textDim, fontSize: 10, wordBreak: 'break-all', margin: 0 }}>{item.preview}{item.size > 120 ? '...' : ''}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── SELF TEST ── */}
+        {tab === 'selftest' && (
+          <div>
+            <Label>自動テスト（スモークテスト）</Label>
+            <p style={{ color: T.textDim, fontSize: 11, marginBottom: 12, lineHeight: 1.7 }}>
+              アプリの核ロジック（出席率計算・データ移行・タグ順序・健全性修復など）と主要ページの描画を自動検証します。
+              手動で操作しなくても、意図通り動いているかを素早く確認できます。
+            </p>
+
+            <button onClick={runSelfTests} disabled={testRunning} style={{ padding: '8px 20px', background: T.green, border: 'none', borderRadius: 6, color: '#04140d', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+              {testRunning ? '実行中...' : 'テストを実行'}
+            </button>
+
+            {testResults?._error && <p style={{ color: T.red, fontSize: 12 }}>実行エラー: {testResults._error}</p>}
+
+            {testResults && !testResults._error && (() => {
+              const all = [...testResults.logic, ...testResults.render]
+              const passed = all.filter(r => r.pass).length
+              const failed = all.length - passed
+              const rate = Math.round((passed / all.length) * 100)
+              return (
+                <>
+                  {/* Summary */}
+                  <div style={{ background: failed === 0 ? T.greenBg : T.redBg, border: `1px solid ${failed === 0 ? T.greenBord : T.redBord}`, borderRadius: 6, padding: 16, marginBottom: 16, textAlign: 'center' }}>
+                    <p style={{ fontSize: 28, fontWeight: 700, color: failed === 0 ? T.green : T.red, margin: 0 }}>{rate}%</p>
+                    <p style={{ fontSize: 13, color: T.textMuted, margin: '4px 0 0' }}>
+                      {passed} / {all.length} 成功
+                      {failed > 0 && <span style={{ color: T.red }}> · {failed} 失敗</span>}
+                    </p>
+                    <p style={{ fontSize: 10, color: T.textDim, marginTop: 6 }}>{testResults.at}</p>
+                  </div>
+
+                  {/* Logic tests */}
+                  <p style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, marginBottom: 8 }}>
+                    ロジックテスト（{testResults.logic.filter(r => r.pass).length}/{testResults.logic.length}）
+                  </p>
+                  {testResults.logic.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: '#0d111a', border: `1px solid ${r.pass ? T.border : T.redBord}`, borderRadius: 5, marginBottom: 5 }}>
+                      <span style={{ color: r.pass ? T.green : T.red, fontSize: 13, flexShrink: 0 }}>{r.pass ? '✓' : '✗'}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 12, color: T.text, margin: 0 }}>{r.name}</p>
+                        {!r.pass && <p style={{ fontSize: 11, color: T.red, margin: '2px 0 0', wordBreak: 'break-word' }}>{r.error}</p>}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Render tests */}
+                  <p style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, margin: '14px 0 8px' }}>
+                    描画テスト（{testResults.render.filter(r => r.pass).length}/{testResults.render.length}）
+                  </p>
+                  {testResults.render.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 10px', background: '#0d111a', border: `1px solid ${r.pass ? T.border : T.redBord}`, borderRadius: 5, marginBottom: 5 }}>
+                      <span style={{ color: r.pass ? T.green : T.red, fontSize: 13, flexShrink: 0 }}>{r.pass ? '✓' : '✗'}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 12, color: T.text, margin: 0 }}>{r.name}</p>
+                        {!r.pass && <p style={{ fontSize: 11, color: T.red, margin: '2px 0 0', wordBreak: 'break-word' }}>{r.error}</p>}
+                      </div>
+                    </div>
+                  ))}
+
+                  <p style={{ fontSize: 10, color: T.textDim, marginTop: 12, lineHeight: 1.7 }}>
+                    ※ ここで90%以上パスすればロジックの回帰バグはほぼ防げます。残り10%（実際のGoogle Sheet連携・タップ操作・複数端末の同期など）は最終的にユーザーテストで確認してください。
+                  </p>
+                </>
+              )
+            })()}
           </div>
         )}
 

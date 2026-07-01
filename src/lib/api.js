@@ -40,7 +40,6 @@ function migrate(raw) {
     d.alertThreshold  = d.alertThreshold  ?? null
     d.pendingMembers  = d.pendingMembers  || []
     d.globalTags      = d.globalTags      || []
-    d.inputStyle      = d.inputStyle      || 'button'
   }
 
   if (!d.globalTags) d.globalTags = []

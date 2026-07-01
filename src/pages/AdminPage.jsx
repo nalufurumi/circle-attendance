@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { loadData, saveData, getLogs, mkLog } from '../lib/api.js'
+import { Card, Avatar } from '../components/ui.jsx'
 import { pingHeartbeat } from '../lib/telemetry.js'
 import {
   CLIENT_ID, COLORS, getColor,
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   EVENT_TYPES, ACCENT_PRESETS, applyAccent, isValidHex, GR, GRB, GRD,
-  todayStr, DEFAULT_DATA, APPS_SCRIPT, computeStats, isEventStarted,
+  todayStr, DEFAULT_DATA, APPS_SCRIPT, computeStats,
 } from '../lib/constants.js'
 
 // CSS variable shortcuts — resolved dynamically via applyAccent()
@@ -32,14 +33,6 @@ function getDisplayName(user) {
 }
 
 // ── Micro UI ──────────────────────────────────────────────────
-const Avatar = ({ name, size = 32, src }) => (
-  src
-    ? <img src={src} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-    : <div style={{ width: size, height: size, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.4, flexShrink: 0 }}>{name.slice(0, 1)}</div>
-)
-const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', ...style }}>{children}</div>
-)
 const PrimaryBtn = ({ children, onClick, color = AC, style = {} }) => (
   <button onClick={onClick} style={{ padding: '8px', background: color, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, ...style }}>{children}</button>
 )

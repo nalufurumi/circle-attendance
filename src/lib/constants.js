@@ -87,14 +87,6 @@ export const COLORS = [
 ]
 export const getColor = id => COLORS.find(c => c.id === id)?.hex || '#D4537E'
 
-export const STATUS_ORDER = ['unknown', 'present', 'late', 'absent']
-export const STATUS = {
-  present: { label: '○', short: '出席', bg: 'var(--color-background-success)', text: 'var(--color-text-success)', border: 'var(--color-border-success)' },
-  late:    { label: '△', short: '遅刻', bg: 'var(--color-background-warning)', text: 'var(--color-text-warning)', border: 'var(--color-border-warning)' },
-  absent:  { label: '×', short: '欠席', bg: 'var(--color-background-danger)',  text: 'var(--color-text-danger)',  border: 'var(--color-border-danger)'  },
-  unknown: { label: '－', short: '未記入', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
-}
-export const DOT = { present: '#1D9E75', late: '#BA7517', absent: '#E24B4A', unknown: 'var(--color-border-secondary)' }
 export const EVENT_TYPES = ['練習', '本番', 'イベント', 'MTG', 'その他']
 
 // Fixed colors (non-accent)
@@ -157,7 +149,7 @@ export function computeStats(events, member, now = new Date()) {
 
 export const DEFAULT_DATA = {
   members: [], events: [], circleName: '', accentColor: 'peacock',
-  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], inputStyle: 'button', dataVersion: 3,
+  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], dataVersion: 3,
 }
 
 // ── Apps Script (v2 with log support) ────────────────────────

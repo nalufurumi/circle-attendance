@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { loadData, saveData, mkLog } from '../lib/api.js'
 import { pingHeartbeat } from '../lib/telemetry.js'
+import { Card, Avatar } from '../components/ui.jsx'
 import {
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   getColor, applyAccent, DEFAULT_DATA, todayStr,
@@ -12,14 +13,6 @@ const AC  = 'var(--accent)'
 const ACB = 'var(--accent-bg)'
 const ACD = 'var(--accent-dark)'
 
-const Avatar = ({ name, size = 32 }) => (
-  <div style={{ width:size, height:size, borderRadius:'50%', background:ACB, color:ACD,
-    display:'flex', alignItems:'center', justifyContent:'center', fontWeight:500,
-    fontSize:size*.4, flexShrink:0 }}>{name.slice(0,1)}</div>
-)
-const Card = ({ children, style={} }) => (
-  <div style={{ background:'var(--color-background-primary)', borderRadius:'var(--border-radius-lg)', boxShadow:'var(--shadow-card)', ...style }}>{children}</div>
-)
 const TagChip = ({ label, active, onClick }) => (
   <button onClick={onClick} style={{ padding:'3px 10px', borderRadius:999, fontSize:12, cursor:'pointer', border:'none',
     background:active?AC:'var(--color-background-secondary)', color:active?'#fff':'var(--color-text-secondary)',

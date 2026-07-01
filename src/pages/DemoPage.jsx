@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Card, Avatar } from '../components/ui.jsx'
 import {
   COLORS, getColor, PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   EVENT_TYPES, applyAccent, todayStr, computeStats, isEditLocked,
@@ -44,12 +45,6 @@ function seedData() {
   }
 }
 
-const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', ...style }}>{children}</div>
-)
-const Avatar = ({ name, size = 32 }) => (
-  <div style={{ width: size, height: size, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.4, flexShrink: 0 }}>{name.slice(0, 1)}</div>
-)
 
 export default function DemoPage() {
   const [data, setData] = useState(seedData)

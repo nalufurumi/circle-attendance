@@ -351,6 +351,93 @@ export default function DevPage() {
     a.click()
   }
 
+  // ── Data health check ──
+  const [healthResult, setHealthResult] = useState(null)
+  const [healthFixing, setHealthFixing] = useState(false)
+
+  const runHealthCheck = async () => {
+    if (!scriptUrl) return
+    setHealthResult({ _loading: true })
+    try {
+      const raw = await loadData(scriptUrl)
+      const d = migrate(raw)
+      const members = d.members || []
+      const events = d.events || []
+      const issues = []
+
+      // 1. Orphaned attendance (records for deleted members)
+      const orphaned = []
+      events.forEach(ev => {
+        Object.keys(ev.attendance || {}).forEach(name => {
+          if (!members.includes(name)) orphaned.push({ event: ev.name, date: ev.date, member: name })
+        })
+      })
+      if (orphaned.length > 0) issues.push({ id: 'orphaned', level: 'warn', label: '削除済みメンバーの出欠記録', count: orphaned.length, detail: orphaned.slice(0, 5).map(o => `${o.member}（${o.event}）`).join('、'), fixable: true })
+
+      // 2. Duplicate members
+      const dupMembers = members.filter((m, i) => members.indexOf(m) !== i)
+      if (dupMembers.length > 0) issues.push({ id: 'dupMembers', level: 'error', label: '重複したメンバー名', count: dupMembers.length, detail: [...new Set(dupMembers)].join('、'), fixable: true })
+
+      // 3. Events with no attendance data at all
+      const emptyEvents = events.filter(ev => Object.keys(ev.attendance || {}).length === 0)
+      if (emptyEvents.length > 0) issues.push({ id: 'emptyEvents', level: 'info', label: '出欠入力が0件のイベント', count: emptyEvents.length, detail: emptyEvents.slice(0, 5).map(e => `${e.name}（${e.date}）`).join('、'), fixable: false })
+
+      // 4. Duplicate event IDs
+      const evIds = events.map(e => e.id)
+      const dupIds = evIds.filter((id, i) => evIds.indexOf(id) !== i)
+      if (dupIds.length > 0) issues.push({ id: 'dupEventIds', level: 'error', label: '重複したイベントID', count: dupIds.length, detail: [...new Set(dupIds)].join('、'), fixable: true })
+
+      // 5. Unused globalTags (declared but never used in any event)
+      const usedTags = new Set(events.flatMap(e => e.tags || []))
+      const unusedTags = (d.globalTags || []).filter(t => !usedTags.has(t))
+      if (unusedTags.length > 0) issues.push({ id: 'unusedTags', level: 'info', label: '未使用のタグ', count: unusedTags.length, detail: unusedTags.map(t => `#${t}`).join('、'), fixable: true })
+
+      // 6. Events missing required fields
+      const brokenEvents = events.filter(ev => !ev.date || !ev.name)
+      if (brokenEvents.length > 0) issues.push({ id: 'brokenEvents', level: 'error', label: '日付/名前が欠けたイベント', count: brokenEvents.length, detail: `${brokenEvents.length}件`, fixable: false })
+
+      setHealthResult({ ok: true, issues, memberCount: members.length, eventCount: events.length, raw: d })
+    } catch (e) {
+      setHealthResult({ _error: e.message })
+    }
+  }
+
+  const applyHealthFix = async () => {
+    if (!healthResult?.raw || !scriptUrl) return
+    setHealthFixing(true)
+    try {
+      const d = JSON.parse(JSON.stringify(healthResult.raw))
+      const members = d.members || []
+      // Fix orphaned attendance
+      d.events = (d.events || []).map(ev => {
+        const att = {}
+        Object.entries(ev.attendance || {}).forEach(([name, v]) => { if (members.includes(name)) att[name] = v })
+        return { ...ev, attendance: att }
+      })
+      // Dedup members (keep first)
+      d.members = [...new Set(members)]
+      // Dedup event IDs (regenerate collisions)
+      const seen = new Set()
+      d.events = d.events.map(ev => {
+        if (seen.has(ev.id)) { const nid = `e${Date.now()}${Math.floor(Math.random() * 1000)}`; seen.add(nid); return { ...ev, id: nid } }
+        seen.add(ev.id); return ev
+      })
+      // Remove unused globalTags
+      const usedTags = new Set(d.events.flatMap(e => e.tags || []))
+      d.globalTags = (d.globalTags || []).filter(t => usedTags.has(t))
+
+      await saveData(scriptUrl, d)
+      setHealthResult({ ...healthResult, _fixed: true })
+      setTimeout(() => runHealthCheck(), 500)
+    } catch (e) {
+      setHealthResult({ ...healthResult, _fixError: e.message })
+    }
+    setHealthFixing(false)
+  }
+
+  // ── QR code (via external image API, URL-encoded) ──
+  const memberUrl = scriptUrl ? `${window.location.origin}/member?c=${btoa(scriptUrl)}` : ''
+
   const runRestore = async () => {
     if (!scriptUrl || !importJson.trim()) return
     try {
@@ -397,9 +484,12 @@ export default function DevPage() {
   // ── Render: Dashboard ──
   const TABS = [
     { id: 'diag',      label: '診断' },
+    { id: 'health',    label: '🩺 健全性' },
     { id: 'errors',    label: errors.length > 0 ? `⚠ エラー (${errors.length})` : '⚠ エラー' },
     { id: 'analytics', label: '📊 全体分析' },
     { id: 'data',      label: 'データ' },
+    { id: 'backup',    label: '💾 バックアップ' },
+    { id: 'qr',        label: '📱 QR' },
     { id: 'logs',      label: 'ログ' },
     { id: 'bugs',      label: '🐛 バグ報告' },
     { id: 'cache',     label: 'キャッシュ' },
@@ -500,6 +590,117 @@ export default function DevPage() {
             <Row k="ls_keys"     v={`${envInfo.lsKeys} keys`} />
             <Row k="language"    v={envInfo.lang} />
             <Row k="user_agent"  v={envInfo.ua.slice(0, 80) + '...'} />
+          </div>
+        )}
+
+        {/* ── HEALTH CHECK ── */}
+        {tab === 'health' && (
+          <div>
+            <Label>データ健全性チェック</Label>
+            <p style={{ color: T.textDim, fontSize: 11, marginBottom: 12, lineHeight: 1.7 }}>
+              接続中のプロジェクトのデータを検査し、孤立レコード・重複・不整合を検出します。ワンクリックで修復も可能です。
+            </p>
+            <button onClick={runHealthCheck} disabled={!scriptUrl || healthResult?._loading} style={{ padding: '6px 16px', background: T.border, border: `1px solid ${T.border2}`, color: T.textMuted, cursor: scriptUrl ? 'pointer' : 'default', borderRadius: 5, fontSize: 12, marginBottom: 14, opacity: !scriptUrl ? 0.5 : 1 }}>
+              {healthResult?._loading ? '検査中...' : '検査を実行'}
+            </button>
+
+            {healthResult?._error && <p style={{ color: T.red, fontSize: 12 }}>Error: {healthResult._error}</p>}
+            {healthResult?._fixed && <p style={{ color: T.green, fontSize: 12, marginBottom: 10 }}>✓ 修復を適用しました</p>}
+            {healthResult?._fixError && <p style={{ color: T.red, fontSize: 12, marginBottom: 10 }}>修復失敗: {healthResult._fixError}</p>}
+
+            {healthResult?.ok && (
+              <>
+                {healthResult.issues.length === 0 ? (
+                  <div style={{ background: T.greenBg, border: `1px solid ${T.greenBord}`, borderRadius: 6, padding: 16, textAlign: 'center' }}>
+                    <p style={{ color: T.green, fontSize: 14, fontWeight: 600, margin: 0 }}>✓ 問題は見つかりませんでした</p>
+                    <p style={{ color: T.textDim, fontSize: 11, marginTop: 6 }}>メンバー {healthResult.memberCount}人 · イベント {healthResult.eventCount}件</p>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{ color: T.textMuted, fontSize: 12, marginBottom: 10 }}>{healthResult.issues.length}件の項目が見つかりました</p>
+                    {healthResult.issues.map(iss => {
+                      const col = iss.level === 'error' ? T.red : iss.level === 'warn' ? T.amber : T.blue
+                      const bg = iss.level === 'error' ? T.redBg : iss.level === 'warn' ? '#1a1408' : '#0f1929'
+                      return (
+                        <div key={iss.id} style={{ background: bg, border: `1px solid ${col}`, borderRadius: 6, padding: '10px 12px', marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: col }}>{iss.label}</span>
+                            <span style={{ fontSize: 12, color: col }}>{iss.count}件{iss.fixable && <span style={{ color: T.textDim, marginLeft: 6 }}>修復可</span>}</span>
+                          </div>
+                          <p style={{ fontSize: 11, color: T.textDim, margin: '4px 0 0' }}>{iss.detail}</p>
+                        </div>
+                      )
+                    })}
+                    {healthResult.issues.some(i => i.fixable) && (
+                      <button onClick={applyHealthFix} disabled={healthFixing} style={{ marginTop: 10, width: '100%', padding: '10px', background: T.green, border: 'none', borderRadius: 6, color: '#04140d', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                        {healthFixing ? '修復中...' : '修復可能な項目をまとめて修復'}
+                      </button>
+                    )}
+                    <p style={{ color: T.textDim, fontSize: 10, marginTop: 8, lineHeight: 1.6 }}>
+                      ※ 修復前に念のため「バックアップ」タブでデータを保存することを推奨します。修復は孤立レコード削除・重複除去・未使用タグ削除を行います。
+                    </p>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── BACKUP / RESTORE ── */}
+        {tab === 'backup' && (
+          <div>
+            <Label>バックアップ / リストア</Label>
+            <p style={{ color: T.textDim, fontSize: 11, marginBottom: 14, lineHeight: 1.7 }}>
+              Apps Scriptやスプレッドシートが壊れた時の保険として、データをJSONで手元に保存できます。復元も可能です。
+            </p>
+
+            <div style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 6, padding: 14, marginBottom: 14 }}>
+              <p style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, marginBottom: 8 }}>📥 バックアップ（ダウンロード）</p>
+              <button onClick={async () => { if (!scriptUrl) return; try { const d = await loadData(scriptUrl); downloadJSON(d, 'circle_backup') } catch (e) { alert('取得失敗: ' + e.message) } }} disabled={!scriptUrl} style={{ padding: '8px 16px', background: T.greenBg, border: `1px solid ${T.greenBord}`, color: T.green, cursor: scriptUrl ? 'pointer' : 'default', borderRadius: 5, fontSize: 12, opacity: !scriptUrl ? 0.5 : 1 }}>
+                現在のデータをダウンロード
+              </button>
+              <p style={{ fontSize: 10, color: T.textDim, marginTop: 8 }}>ファイル名: circle_backup_YYYY-MM-DD.json</p>
+            </div>
+
+            <div style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 6, padding: 14 }}>
+              <p style={{ fontSize: 12, color: T.textMuted, fontWeight: 600, marginBottom: 8 }}>📤 リストア（復元）</p>
+              <p style={{ fontSize: 11, color: T.amber, marginBottom: 8 }}>⚠ 現在のデータは上書きされます。実行前にバックアップ推奨。</p>
+              <textarea value={importJson} onChange={e => setImportJson(e.target.value)} placeholder="バックアップJSONを貼り付け..." style={{ width: '100%', minHeight: 100, background: T.bg, border: `1px solid ${T.border2}`, borderRadius: 5, color: T.text, fontSize: 11, padding: 8, fontFamily: 'monospace', boxSizing: 'border-box' }} />
+              <button onClick={runRestore} disabled={!scriptUrl || !importJson.trim()} style={{ marginTop: 8, padding: '8px 16px', background: T.redBg, border: `1px solid ${T.redBord}`, color: T.red, cursor: (scriptUrl && importJson.trim()) ? 'pointer' : 'default', borderRadius: 5, fontSize: 12, opacity: (!scriptUrl || !importJson.trim()) ? 0.5 : 1 }}>
+                このデータで上書き復元
+              </button>
+              {importMsg && <p style={{ fontSize: 12, color: importMsg.startsWith('✓') ? T.green : T.red, marginTop: 8 }}>{importMsg}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* ── QR CODE ── */}
+        {tab === 'qr' && (
+          <div>
+            <Label>メンバー用URL / QRコード</Label>
+            <p style={{ color: T.textDim, fontSize: 11, marginBottom: 14, lineHeight: 1.7 }}>
+              メンバーが出欠入力するためのURLとQRコードです。サークルのLINEやポスターに貼って共有できます。
+            </p>
+            {!scriptUrl ? (
+              <p style={{ color: T.amber, fontSize: 12 }}>スクリプトURLが未設定です</p>
+            ) : (
+              <>
+                <div style={{ background: '#fff', borderRadius: 8, padding: 16, display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(memberUrl)}`} alt="メンバー用QRコード" width={220} height={220} style={{ display: 'block' }} />
+                </div>
+                <div style={{ background: '#0d111a', border: `1px solid ${T.border}`, borderRadius: 6, padding: 12, marginBottom: 10 }}>
+                  <p style={{ fontSize: 10, color: T.textDim, marginBottom: 4 }}>メンバー用URL</p>
+                  <p style={{ fontSize: 11, color: T.text, wordBreak: 'break-all', fontFamily: 'monospace' }}>{memberUrl}</p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { navigator.clipboard.writeText(memberUrl); alert('URLをコピーしました') }} style={{ flex: 1, padding: '8px', background: T.border, border: `1px solid ${T.border2}`, color: T.textMuted, cursor: 'pointer', borderRadius: 5, fontSize: 12 }}>URLをコピー</button>
+                  <a href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(memberUrl)}&download=1`} download="member_qr.png" style={{ flex: 1, padding: '8px', background: T.greenBg, border: `1px solid ${T.greenBord}`, color: T.green, cursor: 'pointer', borderRadius: 5, fontSize: 12, textAlign: 'center', textDecoration: 'none' }}>QRを保存</a>
+                </div>
+                <p style={{ fontSize: 10, color: T.textDim, marginTop: 10, lineHeight: 1.6 }}>
+                  ※ QRコードは api.qrserver.com で生成しています。URLにスクリプトURLが含まれるため、部外者に見せないよう注意してください。
+                </p>
+              </>
+            )}
           </div>
         )}
 

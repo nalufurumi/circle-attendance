@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Card } from '../components/ui.jsx'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 // accent colors come from CSS variables set by applyAccent()
 const AC  = 'var(--accent)'
@@ -16,11 +17,6 @@ const TYPES = [
   { id: 'other',   label: '💬 その他',     desc: 'ご意見・お問い合わせ' },
 ]
 
-const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-background-primary)', borderRadius: 'var(--border-radius-lg)', boxShadow: 'var(--shadow-card)', ...style }}>
-    {children}
-  </div>
-)
 
 export default function ReportPage() {
   const [params] = useSearchParams()

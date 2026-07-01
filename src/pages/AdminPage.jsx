@@ -196,6 +196,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [memberSort,   setMemberSort]   = useState('registration')  // registration|asc|desc|random
   const [memberSearch, setMemberSearch] = useState('')   // filter member list
   const [evSearch,     setEvSearch]     = useState('')   // filter names inside expanded event
+  const [statOrder,    setStatOrder]    = useState('desc') // 'desc'=高→低 'asc'=低→高
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
   const [newTagInput,  setNewTagInput]  = useState('')
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }

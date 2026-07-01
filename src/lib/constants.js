@@ -2,6 +2,7 @@ export const CLIENT_ID = '921522318195-m08akd0tflopcb1r4h2lfh9ejar2fhot.apps.goo
 
 // ── Accent color presets ──────────────────────────────────────
 export const ACCENT_PRESETS = [
+  { id: 'peacock', main: '#00897B', bg: '#E0F2F1', dark: '#004D40', label: 'ピーコックグリーン' },
   { id: 'rose',    main: '#E8527A', bg: '#FEF0F4', dark: '#9E2047', label: 'ローズ' },
   { id: 'violet',  main: '#7C5BDE', bg: '#F3F0FE', dark: '#4A2FAA', label: 'バイオレット' },
   { id: 'blue',    main: '#3B8FE8', bg: '#EFF7FF', dark: '#1A5FA8', label: 'ブルー' },
@@ -155,7 +156,7 @@ export function computeStats(events, member, now = new Date()) {
 }
 
 export const DEFAULT_DATA = {
-  members: [], events: [], circleName: '', accentColor: 'rose',
+  members: [], events: [], circleName: '', accentColor: 'peacock',
   notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], inputStyle: 'button', dataVersion: 3,
 }
 

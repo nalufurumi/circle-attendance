@@ -11,7 +11,7 @@ const D = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); r
 function seedData() {
   return {
     circleName: 'サンプル☆コピーダンス',
-    accentColor: 'rose',
+    accentColor: 'peacock',
     notice: '次回の全体練習は衣装持参でお願いします！🎀 集合は13:45、A studioです。',
     alertThreshold: 60,
     globalTags: ['全体', 'ダンス', '2期生', '新曲'],

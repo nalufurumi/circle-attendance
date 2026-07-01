@@ -11,7 +11,7 @@ function upgradeAtt(val) {
 /** Run all schema migrations to bring data up to current version */
 function migrate(raw) {
   if (!raw || typeof raw !== 'object') {
-    return { members: [], events: [], circleName: '', accentColor: 'rose', notice: '', alertThreshold: null, pendingMembers: [], dataVersion: CURRENT_DATA_VERSION }
+    return { members: [], events: [], circleName: '', accentColor: 'peacock', notice: '', alertThreshold: null, pendingMembers: [], dataVersion: CURRENT_DATA_VERSION }
   }
   const v = typeof raw.dataVersion === 'number' ? raw.dataVersion : 1
   let d = { ...raw }

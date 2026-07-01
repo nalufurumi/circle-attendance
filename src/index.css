@@ -31,9 +31,9 @@
   --color-border-danger:  #FCA5A5;
 
   /* Accent — overridden by JS via applyAccent() */
-  --accent:      #E8527A;
-  --accent-bg:   #FEF0F4;
-  --accent-dark: #9E2047;
+  --accent:      #00897B;
+  --accent-bg:   #E0F2F1;
+  --accent-dark: #004D40;
 
   /* Radius */
   --border-radius-sm: 6px;

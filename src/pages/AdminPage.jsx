@@ -243,8 +243,12 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     if (j < 0 || j >= ms.length) return
     ;[ms[i], ms[j]] = [ms[j], ms[i]]; update({ ...data, members: ms })
   }
+  const [eventFormError, setEventFormError] = useState('')
+
   const addEvent = () => {
-    if (!newEv.date || !newEv.name.trim()) return
+    if (!newEv.date) { setEventFormError('「日付」が空欄です'); return }
+    if (!newEv.name.trim()) { setEventFormError('「イベント名」が空欄です'); return }
+    setEventFormError('')
     // Merge any newly created tags into globalTags so they persist
     const mergedGlobalTags = [...new Set([...(data.globalTags || []), ...(newEv.tags || [])])]
     if (editingEvId) {
@@ -482,8 +486,13 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <PrimaryBtn onClick={addEvent} style={{ flex: 1 }}>{editingEvId ? '更新する' : '追加する'}</PrimaryBtn>
-                  <GhostBtn onClick={() => { setShowAddEv(false); setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput('') }}>キャンセル</GhostBtn>
+                  <GhostBtn onClick={() => { setShowAddEv(false); setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setTagInput(''); setEventFormError('') }}>キャンセル</GhostBtn>
                 </div>
+                {eventFormError && (
+                  <p style={{ fontSize: 12, color: 'var(--color-text-danger)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <i className="ti ti-alert-circle" style={{ fontSize: 14 }}></i>{eventFormError}
+                  </p>
+                )}
               </Card>
             )}
 

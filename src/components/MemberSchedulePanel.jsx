@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Card } from './ui.jsx'
-import { POLL_ORDER, POLL_STATUS } from '../lib/constants.js'
+import { POLL_ORDER, POLL_STATUS, tallyPollCandidate } from '../lib/constants.js'
 
 // メンバー画面で「回答受付中の日程調整」に○/△/✕+コメントで回答するためのパネル。
 // selMember が選ばれている前提で、onRespond(pollId, candidateId, status, comment) を親から渡してもらう。
 export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
   const [drafts, setDrafts] = useState({}) // { `${pollId}_${candId}`: comment }
+  const [expanded, setExpanded] = useState(new Set()) // `${pollId}_${candId}` を展開中かどうか
 
   const openPolls = (polls || []).filter(p => p.status === 'open')
   if (openPolls.length === 0) return null
@@ -15,6 +16,8 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
     const dt = new Date(d + 'T00:00:00')
     return `${d}（${['日', '月', '火', '水', '木', '金', '土'][dt.getDay()]}）`
   }
+
+  const toggle = (key) => setExpanded(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -32,6 +35,9 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
               const r = poll.responses?.[selMember]?.[cand.id] || {}
               const cur = r.status ?? null
               const comment = drafts[key] ?? r.comment ?? ''
+              const tally = tallyPollCandidate(poll, cand.id)
+              const others = Object.entries(poll.responses || {}).filter(([name]) => name !== selMember)
+              const isOpen = expanded.has(key)
               return (
                 <div key={cand.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
                   <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>{fmtDate(cand.date)}{cand.timeStart ? ` ${cand.timeStart}〜${cand.timeEnd || ''}` : ''}</p>
@@ -51,7 +57,36 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
                     value={comment}
                     onChange={e => setDrafts({ ...drafts, [key]: e.target.value })}
                     onBlur={() => { if (cur) onRespond(poll.id, cand.id, cur, comment) }}
-                    style={{ fontSize: 13 }} />
+                    style={{ fontSize: 13, marginBottom: others.length > 0 ? 8 : 0 }} />
+
+                  {/* 他メンバーの回答状況 */}
+                  {others.length > 0 && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-success)' }}>○ {tally.yes}人</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-warning)' }}>△ {tally.maybe}人</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-danger)' }}>✕ {tally.no}人</span>
+                        </div>
+                        <button onClick={() => toggle(key)} style={{ fontSize: 11, color: 'var(--accent)', border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}>
+                          {isOpen ? '▲ 閉じる' : `全員を見る (${others.length}人)`}
+                        </button>
+                      </div>
+                      {isOpen && (
+                        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {others.map(([name, byCand]) => {
+                            const or = byCand?.[cand.id]
+                            const s = POLL_STATUS[or?.status ?? 'null']
+                            return (
+                              <span key={name} style={{ fontSize: 12, padding: '2px 9px', borderRadius: 999, background: s.bg, color: s.text }}>
+                                {s.icon} {name}{or?.comment ? `（${or.comment}）` : ''}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

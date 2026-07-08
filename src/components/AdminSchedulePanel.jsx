@@ -14,6 +14,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
   const [confirmingPick, setConfirmingPick] = useState(null) // { poll, candidateId, cand }
   const [eventName, setEventName] = useState('')
   const [eventType, setEventType] = useState('練習')
+  const [formError, setFormError] = useState('')
 
   const polls = data.schedulePolls || []
   const openPolls = polls.filter(p => p.status === 'open')
@@ -25,7 +26,9 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
 
   const createPoll = () => {
     const validCandidates = candidates.filter(c => c.date)
-    if (!title.trim() || validCandidates.length === 0) return
+    if (!title.trim()) { setFormError('「タイトル」が空欄です'); return }
+    if (validCandidates.length === 0) { setFormError('候補日が1件も入力されていません（日付を選んでください）'); return }
+    setFormError('')
     const poll = {
       id: `sp${Date.now()}`,
       title: title.trim(),
@@ -82,7 +85,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontWeight: 500 }}>日程調整</span>
-        <button onClick={() => setShowForm(s => !s)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+        <button onClick={() => { setShowForm(s => !s); setFormError('') }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
           <i className="ti ti-plus" style={{ fontSize: 14 }}></i>作成
         </button>
       </div>
@@ -118,8 +121,13 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={createPoll} style={{ flex: 1, padding: '9px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>作成する</button>
-            <button onClick={() => setShowForm(false)} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+            <button onClick={() => { setShowForm(false); setFormError('') }} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
           </div>
+          {formError && (
+            <p style={{ fontSize: 12, color: 'var(--color-text-danger)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <i className="ti ti-alert-circle" style={{ fontSize: 14 }}></i>{formError}
+            </p>
+          )}
         </Card>
       )}
 

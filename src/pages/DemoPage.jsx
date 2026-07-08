@@ -139,8 +139,12 @@ export default function DemoPage() {
     setEditingEvId(ev.id); setShowAddEv(true); setExpandedEv(null)
   }
 
+  const [eventFormError, setEventFormError] = useState('')
+
   const addEvent = () => {
-    if (!newEv.date || !newEv.name.trim()) return
+    if (!newEv.date) { setEventFormError('「日付」が空欄です'); return }
+    if (!newEv.name.trim()) { setEventFormError('「イベント名」が空欄です'); return }
+    setEventFormError('')
     if (editingEvId) {
       setData(d => ({
         ...d,
@@ -449,8 +453,13 @@ export default function DemoPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={addEvent} style={{ flex: 1, padding: '9px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>{editingEvId ? '更新する' : '追加する'}</button>
-                      <button onClick={() => { setShowAddEv(false); setEditingEvId(null) }} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+                      <button onClick={() => { setShowAddEv(false); setEditingEvId(null); setEventFormError('') }} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
                     </div>
+                    {eventFormError && (
+                      <p style={{ fontSize: 12, color: 'var(--color-text-danger)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ti ti-alert-circle" style={{ fontSize: 14 }}></i>{eventFormError}
+                      </p>
+                    )}
                   </Card>
                 )}
               </>

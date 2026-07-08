@@ -73,7 +73,7 @@ export default function LandingPage() {
           <span style={{ color: PG }}>もっとスマートに</span>
         </h1>
         <p style={{ fontSize: 15, color: '#6A6880', lineHeight: 1.8, marginBottom: 32, maxWidth: 360, margin: '0 auto 32px' }}>
-          メンバー全員がスマホ一台で出欠入力。<br />
+          日程調整から出欠管理まで、スマホ一台で完結。<br />
           管理者は統計・ログで全体を把握。<br />
           完全無料・広告なし。
         </p>
@@ -108,6 +108,43 @@ export default function LandingPage() {
         </div>
       </Section>
 
+      {/* ── Schedule Polling (新機能ハイライト) ── */}
+      <Section style={{ background: PGB }}>
+        <div style={{ maxWidth: 480, margin: '0 auto' }}>
+          <Tag>NEW</Tag>
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, lineHeight: 1.3, color: PGD }}>
+            日程調整から、そのまま出欠管理へ
+          </h2>
+          <p style={{ fontSize: 13, color: PGD, opacity: 0.85, lineHeight: 1.7, marginBottom: 20 }}>
+            「調整さん」のように候補日を出して投票してもらい、決まったらワンタップでイベント化。投票の○/△/✕とコメントはそのまま出欠の事前入力に引き継がれます。
+          </p>
+
+          <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,77,64,0.12)', padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${OFF2}` }}>
+              <span style={{ color: PG }}>📅</span>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>8月合宿の日程を決めよう</span>
+            </div>
+            {[
+              { date: '8/20（木）', yes: 5, maybe: 1, no: 0, best: true },
+              { date: '8/27（木）', yes: 3, maybe: 1, no: 2, best: false },
+            ].map(c => (
+              <div key={c.date} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 8, background: c.best ? PGB : '#F8F6F2', borderRadius: 10, border: c.best ? `1.5px solid ${PG}` : '1px solid transparent' }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{c.date}</span>
+                <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                  <span style={{ color: '#0F6E56' }}>○{c.yes}</span>
+                  <span style={{ color: '#8A5000' }}>△{c.maybe}</span>
+                  <span style={{ color: '#B91C1C' }}>✕{c.no}</span>
+                </div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, padding: '10px 12px', background: PGD, borderRadius: 10 }}>
+              <i className="ti ti-arrow-down" style={{ color: PGB, fontSize: 14 }}></i>
+              <span style={{ fontSize: 12, color: '#fff', fontWeight: 500 }}>8/20に決定 → イベント自動作成（投票内容を引き継ぎ済み）</span>
+            </div>
+          </div>
+        </div>
+      </Section>
+
       {/* ── Features ── */}
       <Section style={{ background: OFF }}>
         <div style={{ maxWidth: 480, margin: '0 auto' }}>
@@ -115,11 +152,13 @@ export default function LandingPage() {
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, lineHeight: 1.3 }}>必要なものが、全部そろってる</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FeatureCard icon="📱" title="URLで即アクセス" desc="メンバーはログイン不要。共有URLを開くだけで出欠入力できます" />
+            <FeatureCard icon="📅" title="日程調整も一気通貫" desc="候補日への投票→決定→イベント化まで自動。投票内容は出欠にそのまま引き継がれます" />
             <FeatureCard icon="📊" title="出席率を自動計算" desc="実績・予測の2軸で把握。アラート閾値で要フォローのメンバーを即把握" />
             <FeatureCard icon="🏷️" title="タグ検索で絞り込み" desc="タグで練習・本番・ダンスを分類。メンバーが自分に関係するイベントだけ確認できます" />
             <FeatureCard icon="🔒" title="データはあなたのもの" desc="Google スプレッドシートに直接保存。第三者のサーバーは使いません" />
             <FeatureCard icon="👥" title="全員の参加状況を確認" desc="メンバーも他の参加者の出欠状況を確認可能。当日の参加人数がすぐわかります" />
             <FeatureCard icon="🎨" title="サークルカラーに統一" desc="8色のプリセット＋カラーコード直接入力。メンバー画面にも即反映" />
+            <FeatureCard icon="🩺" title="データを自動で健全に保つ" desc="不整合やゴミデータを自動検出。ワンタップで修復できるので運営側も安心" />
           </div>
         </div>
       </Section>

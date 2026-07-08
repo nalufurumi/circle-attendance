@@ -75,6 +75,42 @@ export const ACTUAL_STATUS = {
   null:    { label: '未入力', short: '未入力', icon: '－', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
 }
 
+// ── 日程調整（スケジュール投票）── メンバーが候補日に○/△/✕+コメントで回答し、
+// 管理者が確定するとイベントに自動変換される（回答内容は事前入力にそのまま引き継ぐ）
+export const POLL_ORDER = ['yes', 'maybe', 'no', null]
+export const POLL_STATUS = {
+  yes:   { label: '参加できる',   short: '○', icon: '○', bg: 'var(--color-background-success)', text: 'var(--color-text-success)', border: 'var(--color-border-success)' },
+  maybe: { label: 'たぶん微妙',   short: '△', icon: '△', bg: 'var(--color-background-warning)', text: 'var(--color-text-warning)', border: 'var(--color-border-warning)' },
+  no:    { label: '参加できない', short: '✕', icon: '✕', bg: 'var(--color-background-danger)',  text: 'var(--color-text-danger)',  border: 'var(--color-border-danger)'  },
+  null:  { label: '未回答',       short: '－', icon: '－', bg: 'var(--color-background-secondary)', text: 'var(--color-text-tertiary)', border: 'var(--color-border-tertiary)' },
+}
+// 投票結果 → 出欠の事前入力(plan)への変換テーブル
+export const POLL_TO_PLAN = { yes: 'attending', maybe: 'undecided', no: 'absent', null: null }
+
+/** 日程調整の候補1件について、○/△/✕ の集計を返す */
+export function tallyPollCandidate(poll, candidateId) {
+  const tally = { yes: 0, maybe: 0, no: 0, null: 0 }
+  Object.values(poll.responses || {}).forEach(byCandidate => {
+    const st = byCandidate?.[candidateId]?.status ?? null
+    tally[st === null ? 'null' : st] = (tally[st === null ? 'null' : st] || 0) + 1
+  })
+  return tally
+}
+
+/**
+ * 確定した候補の投票結果を、新規イベントの attendance オブジェクトに変換する。
+ * ○→参加予定 / △→未定 / ✕→不参加、コメントはそのまま理由に。
+ */
+export function pollResponsesToAttendance(poll, candidateId) {
+  const attendance = {}
+  Object.entries(poll.responses || {}).forEach(([member, byCandidate]) => {
+    const r = byCandidate?.[candidateId]
+    if (!r) return
+    attendance[member] = { plan: POLL_TO_PLAN[r.status ?? 'null'] ?? null, actual: null, reason: r.comment || null }
+  })
+  return attendance
+}
+
 export const COLORS = [
   { id: 'pink',   hex: '#D4537E' },
   { id: 'red',    hex: '#E24B4A' },
@@ -149,7 +185,7 @@ export function computeStats(events, member, now = new Date()) {
 
 export const DEFAULT_DATA = {
   members: [], events: [], circleName: '', accentColor: 'peacock',
-  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], dataVersion: 3,
+  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], schedulePolls: [], dataVersion: 3,
 }
 
 // ── Apps Script (v2 with log support) ────────────────────────

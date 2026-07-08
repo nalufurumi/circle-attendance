@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { loadData, saveData, mkLog } from '../lib/api.js'
 import { pingHeartbeat } from '../lib/telemetry.js'
 import { Card, Avatar } from '../components/ui.jsx'
+import MemberSchedulePanel from '../components/MemberSchedulePanel.jsx'
 import {
   PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   getColor, applyAccent, DEFAULT_DATA, todayStr,
@@ -156,6 +157,22 @@ export default function MemberPage() {
     setData(nd); try { await saveData(scriptUrl, nd) } catch {}
   }
 
+  const respondToPoll = async (pollId, candidateId, status, comment) => {
+    const nd = {
+      ...data,
+      schedulePolls: (data.schedulePolls || []).map(p => {
+        if (p.id !== pollId) return p
+        const responses = { ...(p.responses || {}) }
+        const memberResp = { ...(responses[selMember] || {}) }
+        memberResp[candidateId] = { status, comment: comment || '' }
+        responses[selMember] = memberResp
+        return { ...p, responses }
+      }),
+    }
+    setData(nd)
+    try { await saveData(scriptUrl, nd) } catch {}
+  }
+
   // Use globalTags order first, then append any event tags not in globalTags
   const allTags = [
     ...(data.globalTags || []).filter(t => data.events.some(e => e.tags?.includes(t))),
@@ -240,6 +257,8 @@ export default function MemberPage() {
                 })()}
               </div>
             </div>
+
+            <MemberSchedulePanel polls={data.schedulePolls} selMember={selMember} onRespond={respondToPoll} />
 
             {/* Tag filter */}
             <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:6 }}>

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Card, Avatar } from '../components/ui.jsx'
+import AdminSchedulePanel from '../components/AdminSchedulePanel.jsx'
+import MemberSchedulePanel from '../components/MemberSchedulePanel.jsx'
 import {
   COLORS, getColor, PLAN_ORDER, ACTUAL_ORDER, PLAN_STATUS, ACTUAL_STATUS,
   EVENT_TYPES, applyAccent, todayStr, computeStats, isEditLocked,
@@ -19,6 +21,21 @@ function seedData() {
     members: ['あやか', 'みお', 'さくら', 'ひなた', 'ゆい', 'りん', 'まな', 'のあ'],
     pendingMembers: [
       { id: 'req1', realName: '田中陽菜', displayName: 'ひな', note: '新2年生・パート未定', at: '2026/6/28 21:10' },
+    ],
+    schedulePolls: [
+      {
+        id: 'sp1', title: '8月合宿の日程を決めよう', requireAll: false, status: 'open',
+        candidates: [
+          { id: 'spc1', date: D(20), timeStart: '10:00', timeEnd: '18:00' },
+          { id: 'spc2', date: D(27), timeStart: '10:00', timeEnd: '18:00' },
+        ],
+        responses: {
+          あやか: { spc1: { status: 'yes', comment: '' }, spc2: { status: 'yes', comment: '' } },
+          みお:   { spc1: { status: 'yes', comment: '' }, spc2: { status: 'no', comment: 'バイトのシフト入ってます' } },
+          さくら: { spc1: { status: 'maybe', comment: '午前だけなら' } },
+        },
+        resultCandidateId: null, eventId: null, createdAt: new Date().toISOString(),
+      },
     ],
     events: [
       { id: 'd1', date: D(7),  timeStart: '14:00', timeEnd: '17:00', name: '全体練習（新曲）', type: '練習', color: 'pink',   tags: ['全体', '新曲'], memo: '新曲のフォーメーション確認します！動きやすい服装で。', attendance: {
@@ -234,6 +251,17 @@ export default function DemoPage() {
                   })()}
                 </div>
               </div>
+              <MemberSchedulePanel polls={data.schedulePolls} selMember={selMember} onRespond={(pollId, candId, status, comment) => {
+                setData(d => ({
+                  ...d,
+                  schedulePolls: (d.schedulePolls || []).map(p => {
+                    if (p.id !== pollId) return p
+                    const responses = { ...(p.responses || {}) }
+                    responses[selMember] = { ...(responses[selMember] || {}), [candId]: { status, comment: comment || '' } }
+                    return { ...p, responses }
+                  }),
+                }))
+              }} />
               <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:6 }}>
                 <button onClick={()=>setEvOrder(o=>o==='desc'?'asc':'desc')} style={{ fontSize:12, color:'var(--color-text-secondary)', border:'0.5px solid var(--color-border-tertiary)', background:'transparent', borderRadius:999, padding:'3px 10px', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
                   <i className={`ti ${evOrder==='desc'?'ti-sort-descending':'ti-sort-ascending'}`} style={{ fontSize:13 }}></i>
@@ -367,7 +395,7 @@ export default function DemoPage() {
       {view === 'admin' && (
         <>
           <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', position: 'sticky', top: 48, zIndex: 9, display: 'flex', overflowX: 'auto' }}>
-            {[{ id: 'events', icon: 'ti-calendar', label: 'イベント' }, { id: 'members', icon: 'ti-users', label: 'メンバー' }, { id: 'stats', icon: 'ti-chart-bar', label: '統計' }, { id: 'log', icon: 'ti-history', label: 'ログ' }, { id: 'requests', icon: 'ti-user-check', label: '申請' }, { id: 'settings', icon: 'ti-settings', label: '設定' }].map(t => (
+            {[{ id: 'schedule', icon: 'ti-calendar-question', label: '日程調整' }, { id: 'events', icon: 'ti-calendar', label: 'イベント' }, { id: 'members', icon: 'ti-users', label: 'メンバー' }, { id: 'stats', icon: 'ti-chart-bar', label: '統計' }, { id: 'log', icon: 'ti-history', label: 'ログ' }, { id: 'requests', icon: 'ti-user-check', label: '申請' }, { id: 'settings', icon: 'ti-settings', label: '設定' }].map(t => (
               <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ flex: '1 0 auto', minWidth: 64, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 4px 10px', border: 'none', borderBottom: adminTab === t.id ? `2px solid ${AC}` : '2px solid transparent', background: 'transparent', color: adminTab === t.id ? AC : 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: adminTab === t.id ? 500 : 400 }}>
                 <i className={`ti ${t.icon}`} style={{ fontSize: 18 }}></i>{t.label}
                 {t.id === 'requests' && data.pendingMembers.length > 0 && <span style={{ position: 'absolute', marginTop: -22, marginLeft: 18, width: 7, height: 7, borderRadius: '50%', background: 'var(--color-text-danger)' }} />}
@@ -376,6 +404,16 @@ export default function DemoPage() {
           </div>
 
           <div style={{ padding: 16 }}>
+            {adminTab === 'schedule' && (
+              <AdminSchedulePanel
+                data={data}
+                onUpdate={(newData, logEntry) => { setData(newData); if (logEntry) addLog(logEntry) }}
+                adminLabel="管理者"
+                mkLog={(entry) => entry}
+                AC={AC} ACB={ACB} ACD={ACD}
+                onEventCreated={() => setAdminTab('events')}
+              />
+            )}
             {adminTab === 'events' && (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

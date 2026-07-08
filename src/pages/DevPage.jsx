@@ -301,12 +301,13 @@ export default function DevPage() {
       const heldEvents = (migrated.events || []).filter(e => e.date <= today).length
       const upcomingEvents = (migrated.events || []).length - heldEvents
       const pendingCount = (migrated.pendingMembers || []).length
+      const openPollCount = (migrated.schedulePolls || []).filter(p => p.status === 'open').length
       const noticeSet = !!(migrated.notice || '').trim()
       setDiagResult({
         ok: true, getMs: ms,
         members: migrated.members?.length ?? 0,
         events:  migrated.events?.length  ?? 0,
-        heldEvents, upcomingEvents, pendingCount, noticeSet,
+        heldEvents, upcomingEvents, pendingCount, openPollCount, noticeSet,
         version: data.dataVersion || 1,
         needsMigration: (data.dataVersion || 1) < CURRENT_DATA_VERSION,
         circleName: migrated.circleName || '（未設定）',
@@ -396,6 +397,17 @@ export default function DevPage() {
       const brokenEvents = events.filter(ev => !ev.date || !ev.name)
       if (brokenEvents.length > 0) issues.push({ id: 'brokenEvents', level: 'error', label: '日付/名前が欠けたイベント', count: brokenEvents.length, detail: `${brokenEvents.length}件`, fixable: false })
 
+      // 7. Schedule polls left open for 14+ days without being finalized
+      const polls = d.schedulePolls || []
+      const staleThreshold = Date.now() - 14 * 24 * 60 * 60 * 1000
+      const stalePolls = polls.filter(p => p.status === 'open' && p.createdAt && new Date(p.createdAt).getTime() < staleThreshold)
+      if (stalePolls.length > 0) issues.push({ id: 'stalePolls', level: 'info', label: '2週間以上未確定の日程調整', count: stalePolls.length, detail: stalePolls.map(p => p.title).join('、'), fixable: false })
+
+      // 8. Orphaned poll responses (from deleted members)
+      const orphanedPollResp = []
+      polls.forEach(p => Object.keys(p.responses || {}).forEach(name => { if (!members.includes(name)) orphanedPollResp.push({ poll: p.title, member: name }) }))
+      if (orphanedPollResp.length > 0) issues.push({ id: 'orphanedPollResp', level: 'warn', label: '削除済みメンバーの日程調整回答', count: orphanedPollResp.length, detail: orphanedPollResp.slice(0, 5).map(o => `${o.member}（${o.poll}）`).join('、'), fixable: true })
+
       setHealthResult({ ok: true, issues, memberCount: members.length, eventCount: events.length, raw: d })
     } catch (e) {
       setHealthResult({ _error: e.message })
@@ -425,6 +437,13 @@ export default function DevPage() {
       // Remove unused globalTags
       const usedTags = new Set(d.events.flatMap(e => e.tags || []))
       d.globalTags = (d.globalTags || []).filter(t => usedTags.has(t))
+
+      // Fix orphaned schedule poll responses
+      d.schedulePolls = (d.schedulePolls || []).map(p => {
+        const responses = {}
+        Object.entries(p.responses || {}).forEach(([name, v]) => { if (members.includes(name)) responses[name] = v })
+        return { ...p, responses }
+      })
 
       await saveData(scriptUrl, d)
       setHealthResult({ ...healthResult, _fixed: true })
@@ -571,6 +590,7 @@ export default function DevPage() {
                 <Row k="members"       v={`${diagResult.members}人`} />
                 <Row k="events"        v={`${diagResult.events}件（開催済 ${diagResult.heldEvents} / 開催前 ${diagResult.upcomingEvents}）`} />
                 <Row k="pendingMembers" v={`${diagResult.pendingCount}件`} vStyle={diagResult.pendingCount > 0 ? { color: T.amber } : undefined} />
+                <Row k="日程調整(回答受付中)" v={`${diagResult.openPollCount}件`} />
                 <Row k="notice"        v={diagResult.noticeSet ? '設定あり' : '（未設定）'} />
                 <Row k="accentColor"   v={diagResult.accentColor} />
                 <Row k="dataVersion"   v={`v${diagResult.version}`} vStyle={{ color: diagResult.needsMigration ? T.amber : T.green }} />

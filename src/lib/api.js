@@ -43,6 +43,7 @@ function migrate(raw) {
   }
 
   if (!d.globalTags) d.globalTags = []
+  if (!d.schedulePolls) d.schedulePolls = []
   d.dataVersion = CURRENT_DATA_VERSION
   return d
 }

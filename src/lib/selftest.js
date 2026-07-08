@@ -11,7 +11,7 @@
 // 近似チェックする。完全な描画テストは重いので、ここでは主要ページの
 // コンポーネントを実際に renderToStaticMarkup して例外の有無だけ見る。
 
-import { computeStats, isEditLocked, isEventStarted, DEFAULT_DATA } from './constants.js'
+import { computeStats, isEditLocked, isEventStarted, DEFAULT_DATA, tallyPollCandidate, pollResponsesToAttendance } from './constants.js'
 import { migrate } from './api.js'
 
 // ── 軽量アサーションフレームワーク ──
@@ -182,6 +182,36 @@ export function runLogicTests() {
       ...data.events.flatMap(e => e.tags || []).filter(tag => !(data.globalTags || []).includes(tag)),
     ].filter((tag, i, a) => a.indexOf(tag) === i)
     eq(allTags, ['C', 'A', 'B', 'D'], 'globalTags順+末尾に自動タグ')
+  })
+
+  // ── 日程調整（スケジュール投票）──
+  t('日程調整: 候補ごとの集計が正しい', () => {
+    const poll = {
+      responses: {
+        A: { c1: { status: 'yes', comment: '' } },
+        B: { c1: { status: 'no', comment: '用事' } },
+        C: { c1: { status: 'maybe', comment: '' } },
+        D: {},
+      },
+    }
+    const tally = tallyPollCandidate(poll, 'c1')
+    eq(tally, { yes: 1, maybe: 1, no: 1, null: 1 }, '集計')
+  })
+
+  t('日程調整: 投票結果がイベント事前入力に正しく変換される（○→参加予定/△→未定/✕→不参加）', () => {
+    const poll = {
+      responses: {
+        A: { c1: { status: 'yes',   comment: '' } },
+        B: { c1: { status: 'maybe', comment: 'バイトかも' } },
+        C: { c1: { status: 'no',    comment: '用事' } },
+        D: {}, // 未回答は含まれない
+      },
+    }
+    const att = pollResponsesToAttendance(poll, 'c1')
+    eq(att.A, { plan: 'attending', actual: null, reason: null }, 'yes→attending')
+    eq(att.B, { plan: 'undecided', actual: null, reason: 'バイトかも' }, 'maybe→undecided+コメント')
+    eq(att.C, { plan: 'absent',    actual: null, reason: '用事' }, 'no→absent+コメント')
+    ok(!('D' in att), '未回答者は変換対象に含まれない')
   })
 
   // ── 健全性チェックのロジック ──

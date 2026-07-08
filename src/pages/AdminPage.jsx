@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { loadData, saveData, getLogs, mkLog } from '../lib/api.js'
 import { Card, Avatar } from '../components/ui.jsx'
+import AdminSchedulePanel from '../components/AdminSchedulePanel.jsx'
 import { pingHeartbeat } from '../lib/telemetry.js'
 import {
   CLIENT_ID, COLORS, getColor,
@@ -385,6 +386,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
       <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', position: 'sticky', top: 48, zIndex: 9 }}>
         <div style={{ display: 'flex' }}>
           {[
+            { id: 'schedule',icon: 'ti-calendar-question', label: '日程調整' },
             { id: 'events',  icon: 'ti-calendar',   label: 'イベント' },
             { id: 'members', icon: 'ti-users',       label: 'メンバー' },
             { id: 'stats',   icon: 'ti-chart-bar',   label: '統計' },
@@ -400,6 +402,18 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
       </div>
 
       <div style={{ padding: 16 }}>
+
+        {/* ══ SCHEDULE POLLS ══ */}
+        {tab === 'schedule' && (
+          <AdminSchedulePanel
+            data={data}
+            onUpdate={update}
+            adminLabel={adminLabel}
+            mkLog={mkLog}
+            AC={AC} ACB={ACB} ACD={ACD}
+            onEventCreated={() => setTab('events')}
+          />
+        )}
 
         {/* ══ EVENTS ══ */}
         {tab === 'events' && (

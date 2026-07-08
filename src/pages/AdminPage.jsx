@@ -58,7 +58,6 @@ function SignInView({ onCredential }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--color-background-tertiary)' }}>
       <Card style={{ padding: '2.5rem 2rem', maxWidth: 340, width: '100%', textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>✧</div>
         <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>出席管理</h1>
         <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 28, lineHeight: 1.6 }}>
           サークル管理者はGoogleアカウントでログインしてください。<br />
@@ -376,7 +375,6 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', paddingBottom: '2rem' }}>
       {/* Header */}
       <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ color: AC }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName || '出席管理'}</span>
         <SaveDot />
         <Avatar name={getDisplayName(user)} src={user.picture} size={28} />

@@ -194,7 +194,6 @@ export default function DemoPage() {
 
       {/* Header with view toggle */}
       <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ color: AC }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName}</span>
         <div style={{ display: 'flex', gap: 6 }}>
           {[{ id: 'member', icon: 'ti-user', label: 'メンバー画面' }, { id: 'admin', icon: 'ti-shield', label: '管理者画面' }].map(v => (

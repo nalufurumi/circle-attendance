@@ -77,7 +77,6 @@ export default function ReportPage() {
         >
           <i className="ti ti-arrow-left" style={{ fontSize: 16 }}></i>
         </button>
-        <span style={{ color: AC }}>✧</span>
         <span style={{ fontWeight: 500, fontSize: 15 }}>バグ報告・お問い合わせ</span>
       </div>
 

@@ -56,7 +56,6 @@ export default function LandingPage() {
       {/* ── Nav ── */}
       <nav style={{ background: 'rgba(248,246,242,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: `1px solid ${OFF2}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <a href="/lp" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: '#18182A' }}>
-          <span style={{ color: PG, fontSize: 20 }}>✧</span>
           <span style={{ fontWeight: 700, fontSize: 17 }}>出席管理</span>
         </a>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -85,7 +84,7 @@ export default function LandingPage() {
         {/* App preview card */}
         <div style={{ marginTop: 48, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,77,64,0.12)', padding: 20, maxWidth: 340, margin: '48px auto 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${OFF2}` }}>
-            <span style={{ color: PG }}>✧</span>
+            <span>⚽</span>
             <span style={{ fontWeight: 600, fontSize: 14 }}>○○サッカー部</span>
           </div>
           {[
@@ -214,7 +213,6 @@ export default function LandingPage() {
 
       {/* ── CTA ── */}
       <Section style={{ background: PGD, textAlign: 'center', padding: '72px 24px' }}>
-        <span style={{ fontSize: 28, marginBottom: 16, display: 'block' }}>✧</span>
         <h2 style={{ fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 12, lineHeight: 1.3 }}>まず、試してみてください</h2>
         <p style={{ fontSize: 14, color: PGB, lineHeight: 1.8, marginBottom: 32 }}>
           登録不要。架空のサークルで全機能を体験できます。
@@ -228,7 +226,6 @@ export default function LandingPage() {
       {/* ── Footer ── */}
       <footer style={{ background: '#18182A', padding: '32px 24px', textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ color: PG, fontSize: 18 }}>✧</span>
           <span style={{ color: '#fff', fontWeight: 600 }}>出席管理</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 16 }}>
@@ -236,7 +233,7 @@ export default function LandingPage() {
             <a key={l} href={h} style={{ color: '#6A6880', fontSize: 12, textDecoration: 'none' }}>{l}</a>
           ))}
         </div>
-        <p style={{ color: '#6A6880', fontSize: 11 }}>© 2026 出席管理 · Made with ✧ · 完全無料・広告なし</p>
+        <p style={{ color: '#6A6880', fontSize: 11 }}>© 2026 出席管理 · 完全無料・広告なし</p>
       </footer>
     </div>
   )

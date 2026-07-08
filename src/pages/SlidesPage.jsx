@@ -17,7 +17,6 @@ const slides = [
     bg: PGD,
     render: () => (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 40 }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>✧</div>
         <h1 style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: 16 }}>
           出席管理
         </h1>
@@ -68,7 +67,7 @@ const slides = [
         </p>
         <div style={{ background: '#fff', borderRadius: 16, padding: 20, boxShadow: '0 4px 20px rgba(0,77,64,0.12)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${PGL}` }}>
-            <span style={{ color: PG }}>✧</span>
+            <span>📅</span>
             <span style={{ fontWeight: 600, fontSize: 13, color: '#18182A' }}>6月定期練習 · 6/15(日)</span>
           </div>
           {[
@@ -146,7 +145,6 @@ const slides = [
     bg: PGD,
     render: () => (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 40 }}>
-        <div style={{ fontSize: 40, marginBottom: 16 }}>✧</div>
         <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', lineHeight: 1.3, marginBottom: 12 }}>
           まず、<br />触ってみてください
         </h2>
@@ -193,7 +191,7 @@ export default function SlidesPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 420, marginBottom: 12 }}>
         <a href="/lp" style={{ color: '#6A6880', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ color: PG }}>✧</span> 出席管理
+          出席管理
         </a>
         <span style={{ color: '#6A6880', fontSize: 12 }}>{cur + 1} / {slides.length}</span>
       </div>

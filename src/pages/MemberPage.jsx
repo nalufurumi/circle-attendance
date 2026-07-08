@@ -192,7 +192,7 @@ export default function MemberPage() {
     <div style={{ fontFamily:'var(--font-sans)', fontSize:14, color:'var(--color-text-primary)', paddingBottom:'2rem' }}>
       {/* Header */}
       <div style={{ background:'rgba(255,255,255,0.88)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', boxShadow:'var(--shadow-header)', padding:'12px 16px', position:'sticky', top:0, zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div><span style={{ color:AC, marginRight:6 }}>✧</span><span style={{ fontWeight:500, fontSize:15 }}>{data.circleName||'出席管理'}</span></div>
+        <div><span style={{ fontWeight:500, fontSize:15 }}>{data.circleName||'出席管理'}</span></div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           {saving&&<span style={{ fontSize:11, color:'var(--color-text-warning)' }}>保存中...</span>}
           {selMember&&<button onClick={()=>{setSelMember(null);setActiveTag(null);setReasonDraft({})}} style={{ border:'none', background:'transparent', cursor:'pointer', color:'var(--color-text-secondary)', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><i className="ti ti-arrow-left" style={{ fontSize:14 }}></i>戻る</button>}

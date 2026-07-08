@@ -13,11 +13,11 @@ const AC = 'var(--accent)', ACB = 'var(--accent-bg)', ACD = 'var(--accent-dark)'
 const D = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10) }
 function seedData() {
   return {
-    circleName: 'サンプル☆コピーダンス',
+    circleName: 'サンプル☆サッカー部',
     accentColor: 'peacock',
-    notice: '次回の全体練習は衣装持参でお願いします！🎀 集合は13:45、A studioです。',
+    notice: '次回の練習はスパイク・すね当て持参でお願いします！⚽ 集合は13:45、第2グラウンドです。',
     alertThreshold: 60,
-    globalTags: ['全体', 'ダンス', '2期生', '新曲'],
+    globalTags: ['全体', '新入生', '2年生', '対外試合'],
     members: ['あやか', 'みお', 'さくら', 'ひなた', 'ゆい', 'りん', 'まな', 'のあ'],
     pendingMembers: [
       { id: 'req1', realName: '田中陽菜', displayName: 'ひな', note: '新2年生・パート未定', at: '2026/6/28 21:10' },
@@ -38,21 +38,21 @@ function seedData() {
       },
     ],
     events: [
-      { id: 'd1', date: D(7),  timeStart: '14:00', timeEnd: '17:00', name: '全体練習（新曲）', type: '練習', color: 'pink',   tags: ['全体', '新曲'], memo: '新曲のフォーメーション確認します！動きやすい服装で。', attendance: {
+      { id: 'd1', date: D(7),  timeStart: '14:00', timeEnd: '17:00', name: '全体練習（連携確認）', type: '練習', color: 'pink',   tags: ['全体', '対外試合'], memo: '来月の試合に向けて連携を確認します！動きやすい服装で。', attendance: {
         あやか: { plan: 'attending', actual: null, reason: null }, みお: { plan: 'attending', actual: null, reason: null },
         さくら: { plan: 'late', actual: null, reason: null }, ひなた: { plan: 'absent', actual: null, reason: 'バイト' },
         ゆい: { plan: 'attending', actual: null, reason: null }, りん: { plan: 'undecided', actual: null, reason: null },
       }},
-      { id: 'd2', date: D(3),  timeStart: '18:00', timeEnd: '20:00', name: '2期生ミーティング', type: 'MTG', color: 'blue', tags: ['2期生'], memo: '', attendance: {
+      { id: 'd2', date: D(3),  timeStart: '18:00', timeEnd: '20:00', name: '2年生ミーティング', type: 'MTG', color: 'blue', tags: ['2年生'], memo: '', attendance: {
         さくら: { plan: 'attending', actual: null, reason: null }, ゆい: { plan: 'attending', actual: null, reason: null }, のあ: { plan: 'attending', actual: null, reason: null },
       }},
-      { id: 'd3', date: D(-2), timeStart: '13:00', timeEnd: '16:00', name: '春の定期公演リハ', type: '本番', color: 'red', tags: ['全体', 'ダンス'], memo: '本番想定で通します。', attendance: {
+      { id: 'd3', date: D(-2), timeStart: '13:00', timeEnd: '16:00', name: '春の対外試合', type: '本番', color: 'red', tags: ['全体', '対外試合'], memo: '試合形式で通します。', attendance: {
         あやか: { plan: 'attending', actual: 'present', reason: null }, みお: { plan: 'attending', actual: 'present', reason: null },
         さくら: { plan: 'attending', actual: 'late', reason: null }, ひなた: { plan: 'attending', actual: 'present', reason: null },
         ゆい: { plan: 'late', actual: 'late', reason: '電車遅延' }, りん: { plan: 'attending', actual: 'absent', reason: '体調不良' },
         まな: { plan: 'attending', actual: 'present', reason: null }, のあ: { plan: 'attending', actual: 'present', reason: null },
       }},
-      { id: 'd4', date: D(-9), timeStart: '14:00', timeEnd: '17:00', name: '全体練習', type: '練習', color: 'green', tags: ['全体', 'ダンス'], memo: '', attendance: {
+      { id: 'd4', date: D(-9), timeStart: '14:00', timeEnd: '17:00', name: '全体練習', type: '練習', color: 'green', tags: ['全体'], memo: '', attendance: {
         あやか: { plan: 'attending', actual: 'present', reason: null }, みお: { plan: 'attending', actual: 'present', reason: null },
         さくら: { plan: 'attending', actual: 'present', reason: null }, ひなた: { plan: 'absent', actual: 'absent', reason: 'テスト期間' },
         ゆい: { plan: 'attending', actual: 'present', reason: null }, りん: { plan: 'attending', actual: 'late', reason: null },

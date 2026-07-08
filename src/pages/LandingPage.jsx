@@ -86,7 +86,7 @@ export default function LandingPage() {
         <div style={{ marginTop: 48, background: '#fff', borderRadius: 20, boxShadow: '0 8px 40px rgba(0,77,64,0.12)', padding: 20, maxWidth: 340, margin: '48px auto 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${OFF2}` }}>
             <span style={{ color: PG }}>✧</span>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>○○コピーダンスサークル</span>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>○○サッカー部</span>
           </div>
           {[
             { name: 'あやか', icon: '○', label: '参加予定', color: '#0F6E56', bg: '#EDFAF4' },
@@ -196,9 +196,9 @@ export default function LandingPage() {
           <Tag>こんなサークルに</Tag>
           <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, lineHeight: 1.3 }}>大学のサークル活動にぴったり</h2>
           {[
-            { icon: '🎵', label: 'コピーダンスサークル', desc: 'イベントごとの参加メンバー把握・本番出演調整に' },
-            { icon: '🎭', label: '演劇・バンドサークル', desc: '練習出席率の管理・本番キャスト確認に' },
-            { icon: '⚽', label: 'スポーツサークル', desc: '大会・練習の出欠確認、コート手配の人数把握に' },
+            { icon: '⚽', label: 'サッカー・フットサル部', desc: '練習・試合の出欠確認、遠征メンバーの把握に' },
+            { icon: '🎸', label: '軽音楽・吹奏楽サークル', desc: '練習出席率の管理、ライブ・本番のメンバー確認に' },
+            { icon: '🎾', label: 'テニス・バドミントンサークル', desc: 'コート予約に合わせた参加人数の把握に' },
             { icon: '📚', label: '勉強会・ゼミ', desc: '定期活動の出席記録・単位確認の補助に' },
           ].map(u => (
             <div key={u.label} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 16, padding: 16, background: OFF, borderRadius: 12 }}>

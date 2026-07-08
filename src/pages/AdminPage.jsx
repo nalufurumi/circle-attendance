@@ -860,7 +860,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <p style={{ fontWeight: 500, margin: 0 }}>団体名</p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input type="text" placeholder="例：○○コピーダンスサークル" value={circleName} onChange={e => setCircleName(e.target.value)} style={{ flex: 1 }} />
+                <input type="text" placeholder="例：○○サークル" value={circleName} onChange={e => setCircleName(e.target.value)} style={{ flex: 1 }} />
                 <button onClick={saveCircleName} style={{ padding: '0 14px', background: GR, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}>保存</button>
               </div>
               <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 6 }}>メンバー側の画面タイトルに表示されます</p>

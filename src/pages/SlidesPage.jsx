@@ -164,6 +164,7 @@ const slides = [
           </a>
         </div>
         <p style={{ marginTop: 32, fontSize: 11, color: PGL }}>circle-attendance-chi.vercel.app</p>
+        <p style={{ marginTop: 4, fontSize: 10, color: PGL, opacity: 0.7 }}>Produced by Nalu Furumi / CreativeTeam Lunar</p>
       </div>
     ),
   },
@@ -219,6 +220,7 @@ export default function SlidesPage() {
       </div>
 
       <p style={{ color: '#3A3A4A', fontSize: 11, marginTop: 12 }}>スワイプまたはボタンで切替</p>
+      <p style={{ color: '#2A2A3A', fontSize: 10, marginTop: 6 }}>Produced by Nalu Furumi / CreativeTeam Lunar</p>
     </div>
   )
 }

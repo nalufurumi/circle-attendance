@@ -785,6 +785,7 @@ export default function DemoPage() {
             導入検討の方はこちら
           </a>
         </Card>
+        <p style={{ textAlign: 'center', fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 12 }}>Produced by Nalu Furumi / CreativeTeam Lunar</p>
       </div>
 
       {/* Admin confirmation modal */}

@@ -234,6 +234,7 @@ export default function LandingPage() {
           ))}
         </div>
         <p style={{ color: '#6A6880', fontSize: 11 }}>© 2026 出席管理 · 完全無料・広告なし</p>
+        <p style={{ color: '#4A4860', fontSize: 10, marginTop: 6 }}>Produced by Nalu Furumi / CreativeTeam Lunar</p>
       </footer>
     </div>
   )

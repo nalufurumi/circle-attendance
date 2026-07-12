@@ -120,6 +120,9 @@ const CSS = `
 .nav-btns button:hover:not(:disabled) { background:rgba(255,255,255,.16); }
 .nav-btns button:disabled { opacity:.3; cursor:default; }
 .pageno { color:rgba(255,255,255,.4); font-size:12px; font-family:ui-monospace,monospace; min-width:44px; text-align:center; }
+.chap { color:var(--mint); font-size:12px; font-weight:800; letter-spacing:.06em; margin-right:6px; padding:3px 11px; border:1px solid rgba(77,208,196,.35); border-radius:999px; }
+.progress { height:3px; background:rgba(255,255,255,.08); position:relative; z-index:5; }
+.progress-fill { height:100%; background:linear-gradient(90deg,var(--pg),var(--mint)); transition:width .5s cubic-bezier(.16,.8,.24,1); }
 .credit-s { position:absolute; bottom:10px; left:0; right:0; text-align:center; font-size:10px; color:rgba(255,255,255,.35); }
 .slide.light .credit-s, .slide.tint .credit-s { color:rgba(20,32,43,.3); }
 `
@@ -127,17 +130,17 @@ const CSS = `
 // 各スライドは { bg: 'dark'|'light'|'tint', node } を返す
 const slides = [
   // 0 タイトル
-  { cls: 'dark', bg: '#004D40', render: () => (
+  { chapter: 'ようこそ', cls: 'dark', bg: '#004D40', render: () => (
     <div className="wrap center">
-      <div className="s-eyebrow">イベント調整アプリ</div>
+      <div className="s-eyebrow">イベント調整アプリ・紹介資料</div>
       <h1 className="s-h1" style={{ fontSize:'clamp(42px,9vw,86px)' }}>あてんど</h1>
-      <p className="s-lead">日程調整から出欠管理、イベント記録まで。<br />サークル運営を、ひとつのアプリで。</p>
+      <p className="s-lead">ここから、あてんどのすべてを<br />ひとつずつご紹介します。</p>
       <div className="accent-line" />
-      <p className="s-body" style={{ marginTop:18, color:'#B2DFDB' }}>完全無料 · 広告なし · データは自分たちのGoogleシートに</p>
+      <p className="s-body" style={{ marginTop:18, color:'#B2DFDB' }}>矢印キー / スワイプ / 下のドットで進めます →</p>
     </div>
   )},
   // 1 課題
-  { cls: 'dark', bg: '#14202B', render: () => (
+  { chapter: '課題', cls: 'dark', bg: '#14202B', render: () => (
     <div className="wrap">
       <div className="s-eyebrow">こんな困りごと、ありませんか</div>
       <h2 className="s-h2">サークルの日程・出欠管理は、<br />意外とめんどう。</h2>
@@ -150,7 +153,7 @@ const slides = [
     </div>
   )},
   // 2 解決
-  { cls: 'tint', bg: '#E0F2F1', render: () => (
+  { chapter: '解決', cls: 'tint', bg: '#E0F2F1', render: () => (
     <div className="wrap center">
       <div className="s-eyebrow">あてんど なら</div>
       <h2 className="s-h2">調整も、出欠も、記録も。<br />ぜんぶ、ひとつに。</h2>
@@ -163,7 +166,7 @@ const slides = [
     </div>
   )},
   // 3 機能1 日程調整
-  { cls: 'light', bg: '#F8F6F2', render: () => (
+  { chapter: '機能', cls: 'light', bg: '#F8F6F2', render: () => (
     <div className="wrap">
       <div className="cols">
         <div>
@@ -186,7 +189,7 @@ const slides = [
     </div>
   )},
   // 4 機能2 出欠管理
-  { cls: 'light', bg: '#F8F6F2', render: () => (
+  { chapter: '機能', cls: 'light', bg: '#F8F6F2', render: () => (
     <div className="wrap">
       <div className="cols">
         <div className="mock">
@@ -211,7 +214,7 @@ const slides = [
     </div>
   )},
   // 5 機能3 統計
-  { cls: 'light', bg: '#F8F6F2', render: () => (
+  { chapter: '機能', cls: 'light', bg: '#F8F6F2', render: () => (
     <div className="wrap">
       <div className="cols">
         <div>
@@ -239,7 +242,7 @@ const slides = [
     </div>
   )},
   // 6 メンバー管理
-  { cls: 'tint', bg: '#E0F2F1', render: () => (
+  { chapter: '機能', cls: 'tint', bg: '#E0F2F1', render: () => (
     <div className="wrap">
       <div className="s-eyebrow">機能④ メンバー管理</div>
       <h2 className="s-h2">メンバーを、<br />きちんと把握。</h2>
@@ -260,7 +263,7 @@ const slides = [
     </div>
   )},
   // 7 データ所有・安心
-  { cls: 'dark', bg: '#004D40', render: () => (
+  { chapter: '安心', cls: 'dark', bg: '#004D40', render: () => (
     <div className="wrap center">
       <div className="s-eyebrow">安心して使える理由</div>
       <h2 className="s-h2">データは、<br />あなたたちのもの。</h2>
@@ -273,7 +276,7 @@ const slides = [
     </div>
   )},
   // 8 ユースケース
-  { cls: 'dark', bg: '#14202B', render: () => (
+  { chapter: '活用', cls: 'dark', bg: '#14202B', render: () => (
     <div className="wrap">
       <div className="s-eyebrow">こんなサークルに</div>
       <h2 className="s-h2">部活でも、サークルでも。</h2>
@@ -286,7 +289,7 @@ const slides = [
     </div>
   )},
   // 9 料金
-  { cls: 'tint', bg: '#E0F2F1', render: () => (
+  { chapter: '料金', cls: 'tint', bg: '#E0F2F1', render: () => (
     <div className="wrap center">
       <div className="s-eyebrow">料金</div>
       <h2 className="s-h2">今なら、まるごと無料。</h2>
@@ -313,7 +316,7 @@ const slides = [
     </div>
   )},
   // 10 最終CTA → LP
-  { cls: 'dark', bg: '#004D40', final: true, render: (go) => (
+  { chapter: 'はじめる', cls: 'dark', bg: '#004D40', final: true, render: (go) => (
     <div className="wrap center">
       <div className="s-eyebrow">まず、触ってみてください</div>
       <h2 className="s-h2" style={{ fontSize:'clamp(28px,6vw,54px)' }}>説明を読むより、<br />1分デモが早い。</h2>
@@ -353,6 +356,7 @@ export default function SlidesPage() {
   return (
     <div className="deck">
       <style>{CSS}</style>
+      <div className="progress"><div className="progress-fill" style={{ width: `${((i + 1) / n) * 100}%` }} /></div>
       <div className="stage" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {slides.map((s, idx) => (
           <section
@@ -375,6 +379,7 @@ export default function SlidesPage() {
           ))}
         </div>
         <div className="nav-btns">
+          <span className="chap">{slides[i].chapter}</span>
           <button onClick={() => go(-1)} disabled={i === 0} aria-label="前へ">‹</button>
           <span className="pageno">{i + 1} / {n}</span>
           <button onClick={() => go(1)} disabled={i === n - 1} aria-label="次へ">›</button>

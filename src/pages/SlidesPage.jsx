@@ -12,6 +12,9 @@ const CSS = `
 * { box-sizing:border-box; }
 .deck { position:fixed; inset:0; background:var(--ink); display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP',sans-serif; overflow:hidden; }
 .deck ::selection { background:var(--mint); color:var(--pg-d); }
+.deck, .deck * { word-break: keep-all; overflow-wrap: break-word; }
+.deck h1, .deck h2, .deck h3 { text-wrap: balance; }
+.deck p, .deck li, .deck div { text-wrap: pretty; }
 .stage { flex:1; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
 .slide { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:clamp(28px,6vw,72px); opacity:0; transform:translateX(40px); transition:opacity .5s ease, transform .5s ease; pointer-events:none; overflow-y:auto; }
 .slide.active { opacity:1; transform:none; pointer-events:auto; }

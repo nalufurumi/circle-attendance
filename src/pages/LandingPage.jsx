@@ -17,6 +17,12 @@ const CSS = `
   font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP',sans-serif; -webkit-font-smoothing:antialiased; }
 .lp ::selection { background:var(--pg); color:#fff; }
 .lp a { text-decoration:none; }
+/* 日本語の折り返し対策: カタカナ語や英数字が単語の途中で割れないように、
+   見出しは行の長さを自動でバランス調整(対応ブラウザ)、本文は孤立した1文字が
+   行末に残らないよう補助する。 */
+.lp, .lp * { word-break: keep-all; overflow-wrap: break-word; }
+.lp h1, .lp h2, .lp h3 { text-wrap: balance; }
+.lp p, .lp li, .lp div { text-wrap: pretty; }
 
 .rv { opacity:0; transform:translateY(34px); transition:opacity .75s cubic-bezier(.16,.8,.24,1), transform .75s cubic-bezier(.16,.8,.24,1); }
 .rv.in { opacity:1; transform:none; }
@@ -150,7 +156,7 @@ const CSS = `
 .final { text-align:center; padding:clamp(64px,10vw,130px) 0; background:var(--pg-bg); }
 .final h2 { font-size:clamp(32px,6vw,66px); font-weight:900; letter-spacing:-.035em; line-height:1.02; margin:0 0 18px; color:var(--pg-d); }
 .final h2 em { font-style:normal; color:var(--pg); }
-.final p { font-size:clamp(15px,1.9vw,19px); color:var(--pg-d); opacity:.8; margin:0 0 32px; }
+.final p { font-size:clamp(15px,1.9vw,19px); color:var(--pg-d); opacity:.8; margin:0 auto 32px; max-width:44ch; }
 .final .hero-cta { justify-content:center; }
 
 /* footer */
@@ -231,7 +237,7 @@ export default function LandingPage() {
         <div className="wrap">
           <div className="sec-head">
             <p className="tag rv">3ステップで完結</p>
-            <h2 className="rv">運営の「めんどう」を、ひとつに。</h2>
+            <h2 className="rv">運営の「めんどう」を、<br />ひとつに。</h2>
           </div>
           <div className="flow">
             <div className="fcard rv"><span className="ic">🗓️</span><div className="n">STEP 01</div><h3>日程を決める</h3><p>候補日を出して投票してもらう。みんなの都合が一目でわかります。</p></div>
@@ -247,7 +253,7 @@ export default function LandingPage() {
           <div className="split">
             <div className="st rv">
               <span className="tag2">日程調整</span>
-              <h3>「いつなら来られる？」を、一発で。</h3>
+              <h3>「いつなら来られる？」<br />を、一発で。</h3>
               <p>候補日を並べて投票リンクを送るだけ。そのまま出欠管理につながります。</p>
               <ul>
                 <li><span className="ck">✓</span>○△✕＋コメントで気軽に回答</li>
@@ -273,7 +279,7 @@ export default function LandingPage() {
           <div className="split rev">
             <div className="st rv">
               <span className="tag2">出欠管理</span>
-              <h3>誰が来るか、ひと目で。</h3>
+              <h3>誰が来るか、<br />ひと目で。</h3>
               <p>メンバーは名前を選んで出欠を入れるだけ。ログインは要りません。</p>
               <ul>
                 <li><span className="ck">✓</span>ログイン不要・URLを開くだけ</li>

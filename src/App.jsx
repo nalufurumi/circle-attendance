@@ -25,11 +25,11 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={<Loading />}>
           <Routes>
-            <Route path="/admin"  element={<AdminPage />} />
-            <Route path="/member" element={<MemberPage />} />
-            <Route path="/dev"    element={<DevPage />} />
-            <Route path="/report" element={<ReportPage />} />
-            <Route path="/demo"   element={<DemoPage />} />
+            <Route path="/admin"  element={<div className="app-shell"><AdminPage /></div>} />
+            <Route path="/member" element={<div className="app-shell"><MemberPage /></div>} />
+            <Route path="/dev"    element={<div className="app-shell"><DevPage /></div>} />
+            <Route path="/report" element={<div className="app-shell"><ReportPage /></div>} />
+            <Route path="/demo"   element={<div className="app-shell"><DemoPage /></div>} />
             <Route path="/lp"     element={<LandingPage />} />
             <Route path="/slides" element={<SlidesPage />} />
             <Route path="*"       element={<Navigate to="/lp" replace />} />

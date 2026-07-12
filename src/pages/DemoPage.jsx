@@ -212,12 +212,13 @@ export default function DemoPage() {
       {/* Demo banner */}
       <div style={{ background: ACD, color: '#fff', padding: '8px 16px', fontSize: 12, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
         <i className="ti ti-flask" style={{ fontSize: 14 }}></i>
-        体験版です — 自由に触ってOK！変更はページを再読み込みすると元に戻ります
+        体験版です（β・「あてんど」は仮称です） — 自由に触ってOK！変更はページを再読み込みすると元に戻ります
       </div>
 
       {/* Header with view toggle */}
       <div style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: ACD, background: ACB, padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>β</span>
         <div style={{ display: 'flex', gap: 6 }}>
           {[{ id: 'member', icon: 'ti-user', label: 'メンバー画面' }, { id: 'admin', icon: 'ti-shield', label: '管理者画面' }].map(v => (
             <button key={v.id} onClick={() => { setView(v.id); setSelMember(null) }} style={{ padding: '5px 11px', borderRadius: 999, fontSize: 12, cursor: 'pointer', background: view === v.id ? ACB : 'transparent', border: `0.5px solid ${view === v.id ? AC : 'var(--color-border-tertiary)'}`, color: view === v.id ? ACD : 'var(--color-text-secondary)', fontWeight: view === v.id ? 500 : 400 }}>

@@ -58,10 +58,16 @@ function SignInView({ onCredential }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--color-background-tertiary)' }}>
       <Card style={{ padding: '2.5rem 2rem', maxWidth: 340, width: '100%', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>あてんど</h1>
-        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 28, lineHeight: 1.6 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>
+          あてんど
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '2px 8px', borderRadius: 999, marginLeft: 8, verticalAlign: 'middle' }}>β</span>
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
           サークル管理者はGoogleアカウントでログインしてください。<br />
           データはあなた自身のGoogleスプレッドシートに保存されます。
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 20, lineHeight: 1.6 }}>
+          ※ ベータ版です。「あてんど」は仮称であり、今後名称が変更される場合があります。
         </p>
         <div ref={btnRef} style={{ display: 'flex', justifyContent: 'center' }} />
       </Card>
@@ -394,7 +400,8 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', paddingBottom: '2rem' }}>
       {/* Header */}
       <div style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: 'var(--shadow-header)', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName || '出席管理'}</span>
+        <span style={{ fontWeight: 500, fontSize: 15, flex: 1 }}>{data.circleName || 'あてんど'}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent-dark)', background: 'var(--accent-bg)', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>β</span>
         <SaveDot />
         <Avatar name={getDisplayName(user)} src={user.picture} size={28} />
         <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getDisplayName(user)}</span>

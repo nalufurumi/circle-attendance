@@ -152,10 +152,11 @@ const slides = [
   { chapter: 'ようこそ', cls: 'dark', bg: '#004D40', render: () => (
     <div className="wrap center">
       <div className="s-eyebrow">イベント調整アプリ・紹介資料</div>
-      <h1 className="s-h1" style={{ fontSize:'clamp(42px,9vw,86px)' }}>あてんど</h1>
+      <h1 className="s-h1" style={{ fontSize:'clamp(42px,9vw,86px)' }}>あてんど<span style={{ fontSize:'0.28em', verticalAlign:'super', color:'#4DD0C4', fontWeight:700, marginLeft:8 }}>β</span></h1>
       <p className="s-lead">ここから、あてんどのすべてを<br />ひとつずつご紹介します。</p>
       <div className="accent-line" />
       <p className="s-body" style={{ marginTop:18, color:'#B2DFDB' }}>矢印キー / スワイプ / 下のドットで進めます →</p>
+      <p className="s-body" style={{ marginTop:28, color:'rgba(178,223,219,0.6)', fontSize:'12px' }}>※ ベータ版として公開中です。「あてんど」は仮称であり、今後変更される場合があります。</p>
     </div>
   )},
   // 1 課題
@@ -377,6 +378,7 @@ const slides = [
         <a href="/demo" className="btn btn-ghost">デモを触る</a>
       </div>
       <p className="s-body" style={{ marginTop:26, color:'#B2DFDB' }}>circle-attendance-chi.vercel.app</p>
+      <p className="s-body" style={{ marginTop:10, color:'rgba(178,223,219,0.55)', fontSize:'11px' }}>β版・「あてんど」は仮称です</p>
     </div>
   )},
 ]

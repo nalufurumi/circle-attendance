@@ -63,6 +63,12 @@ body {
 }
 
 #root {
+  min-height: 100vh;
+}
+
+/* モバイル専用の運用画面(管理者/メンバー/開発者/デモ/報告)だけに幅制約をかける。
+   LP(/lp)とスライド(/slides)は各ページ自身が全幅レイアウトを管理するため対象外。 */
+.app-shell {
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;

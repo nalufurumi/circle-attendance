@@ -31,6 +31,7 @@ const CSS = `
 .logo { display:flex; align-items:baseline; gap:8px; color:var(--ink); }
 .logo b { font-size:21px; font-weight:900; letter-spacing:-.03em; }
 .logo i { font-size:11px; color:var(--pg); font-weight:800; font-style:normal; letter-spacing:.08em; }
+.beta-badge { font-size:10px; font-weight:800; color:#fff; background:var(--pg-l); padding:2px 8px; border-radius:999px; letter-spacing:.03em; margin-left:2px; }
 .nav-r { display:flex; align-items:center; gap:clamp(10px,2vw,22px); }
 .nav-r a.txt { color:var(--muted); font-size:13px; font-weight:600; }
 .nav-r a.txt:hover { color:var(--pg-d); }
@@ -183,7 +184,7 @@ export default function LandingPage() {
       <style>{CSS}</style>
 
       <nav className="nav">
-        <a href="/lp" className="logo"><b>あてんど</b><i>attend</i></a>
+        <a href="/lp" className="logo"><b>あてんど</b><i>attend</i><span className="beta-badge">β</span></a>
         <div className="nav-r">
           <a href="/slides" className="txt">紹介資料</a>
           <a href="/demo" className="txt">デモ</a>
@@ -196,7 +197,7 @@ export default function LandingPage() {
         <div className="wrap">
           <div className="hero-grid">
             <div className="hero-copy c-center">
-              <span className="eyb rv"><span className="dot"></span>大学サークル向け・完全無料</span>
+              <span className="eyb rv"><span className="dot"></span>大学サークル向け・完全無料・β版公開中</span>
               <h1 className="rv">調整も出欠も、<br /><em>ぜんぶここで。</em></h1>
               <p className="sub rv">日程調整から出欠管理、記録まで。サークル運営がスマホ一台で完結するアプリ。</p>
               <div className="hero-cta rv">
@@ -361,7 +362,8 @@ export default function LandingPage() {
             <a href="/report">お問い合わせ</a>
             <a href="/report?type=bug">バグ報告</a>
           </div>
-          <p className="cp">© 2026 あてんど · Produced by Nalu Furumi / Creative Team Lunar</p>
+          <p className="cp">© 2026 あてんど（β版） · Produced by Nalu Furumi / Creative Team Lunar</p>
+          <p className="cp" style={{ marginTop: 6, opacity: 0.7 }}>※ 現在ベータ版として公開中です。「あてんど」は仮称であり、今後名称が変更される場合があります。</p>
         </div>
       </footer>
     </div>

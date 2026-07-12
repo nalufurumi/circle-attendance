@@ -178,7 +178,7 @@ export default function ReportPage() {
 
             {/* App version */}
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 16 }}>
-              あてんど v{APP_VER}
+              あてんど（β・仮称）v{APP_VER}
             </p>
           </>
         )}

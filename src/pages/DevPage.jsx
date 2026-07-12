@@ -513,7 +513,7 @@ export default function DevPage() {
       <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '2rem', maxWidth: 320, width: '100%', textAlign: 'center' }}>
         <div style={{ fontSize: 36, marginBottom: 10 }}>🛠</div>
         <p style={{ color: '#f0f0f5', fontWeight: 600, fontSize: 16, marginBottom: 4 }}>Developer Tools</p>
-        <p style={{ color: T.textDim, fontSize: 11, marginBottom: 24 }}>あてんど v{APP_VER}</p>
+        <p style={{ color: T.textDim, fontSize: 11, marginBottom: 24 }}>あてんど（β・仮称）v{APP_VER}</p>
         <input
           type="password" placeholder="password" value={pw}
           onChange={e => setPw(e.target.value)}

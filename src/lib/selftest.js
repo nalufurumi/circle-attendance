@@ -154,7 +154,7 @@ export function runLogicTests() {
       { id: '1', date: '2026-01-01', name: 'X', attendance: { A: 'present' } },
     ] }
     const m = migrate(v2)
-    eq(m.dataVersion, 3, 'バージョン更新')
+    eq(m.dataVersion, 4, 'バージョン更新')
     eq(typeof m.events[0].attendance.A, 'object', 'オブジェクト化')
     eq(m.events[0].attendance.A.actual, 'present', 'actual移行')
   })
@@ -163,7 +163,7 @@ export function runLogicTests() {
     const m = migrate(null)
     ok(Array.isArray(m.members), 'members配列')
     ok(Array.isArray(m.events), 'events配列')
-    eq(m.dataVersion, 3, 'バージョン')
+    eq(m.dataVersion, 4, 'バージョン')
   })
 
   t('migrate: globalTagsが常に存在する', () => {

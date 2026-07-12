@@ -171,6 +171,20 @@ export function runLogicTests() {
     ok(Array.isArray(m.globalTags), 'globalTags配列')
   })
 
+  t('migrate: v3→v4でmemberMeta/memberRolesが追加される', () => {
+    const m = migrate({ dataVersion: 3, members: ['A', 'B'], events: [] })
+    ok(typeof m.memberMeta === 'object' && m.memberMeta !== null, 'memberMetaオブジェクト')
+    ok(Array.isArray(m.memberRoles), 'memberRoles配列')
+    eq(m.dataVersion, 4, 'バージョン4')
+    eq(m.members, ['A', 'B'], 'members保持')
+  })
+
+  t('migrate: 既存memberMetaは保持される', () => {
+    const m = migrate({ dataVersion: 4, members: ['A'], events: [], memberMeta: { A: { grade: '25', roles: ['会計'] } }, memberRoles: ['会計'] })
+    eq(m.memberMeta.A.grade, '25', '学年保持')
+    eq(m.memberMeta.A.roles, ['会計'], 'ロール保持')
+  })
+
   // ── タグ順序（globalTags基準）──
   t('タグ順序: globalTagsの順番が優先される', () => {
     const data = {

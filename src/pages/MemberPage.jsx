@@ -20,14 +20,14 @@ const TagChip = ({ label, active, onClick }) => (
     fontWeight:active?500:400 }}>#{label}</button>
 )
 
-function MemberRequestForm({ scriptUrl, onClose }) {
-  const [form, setForm] = useState({ realName:'', displayName:'', note:'' })
+function MemberRequestForm({ scriptUrl, onClose, availableRoles = [] }) {
+  const [form, setForm] = useState({ realName:'', displayName:'', note:'', grade:'', roles:[] })
   const [status, setStatus] = useState('idle')
 
   const submit = async () => {
     if (!form.realName.trim() || !form.displayName.trim()) return
     setStatus('sending')
-    const req = { id:`req_${Date.now()}`, realName:form.realName.trim(), displayName:form.displayName.trim(), note:form.note.trim(), at:new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}) }
+    const req = { id:`req_${Date.now()}`, realName:form.realName.trim(), displayName:form.displayName.trim(), note:form.note.trim(), grade:form.grade, roles:form.roles, at:new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'}) }
     try {
       const cur = await loadData(scriptUrl)
       await saveData(scriptUrl, { ...cur, pendingMembers:[...(cur.pendingMembers||[]), req] })
@@ -58,8 +58,29 @@ function MemberRequestForm({ scriptUrl, onClose }) {
           <input type="text" placeholder="はなこ / 花 など" value={form.displayName} onChange={e=>setForm({...form,displayName:e.target.value})} />
         </div>
         <div>
+          <p style={{ fontSize:12, color:'var(--color-text-secondary)', marginBottom:4 }}>学年 / ID（2桁・任意）</p>
+          <input type="text" inputMode="numeric" maxLength={2} placeholder="例: 25" value={form.grade} onChange={e=>setForm({...form,grade:e.target.value.replace(/[^0-9]/g,'').slice(0,2)})} style={{ width:80 }} />
+          <p style={{ fontSize:11, color:'var(--color-text-tertiary)', marginTop:3 }}>入学年度の下2桁など（例: 2025年入学→25）</p>
+        </div>
+        {availableRoles.length > 0 && (
+          <div>
+            <p style={{ fontSize:12, color:'var(--color-text-secondary)', marginBottom:4 }}>ロール（任意・複数選択可）</p>
+            <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+              {availableRoles.map(role => {
+                const on = form.roles.includes(role)
+                return (
+                  <button key={role} onClick={()=>setForm({...form, roles: on ? form.roles.filter(r=>r!==role) : [...form.roles, role]})} style={{ fontSize:12, padding:'4px 12px', borderRadius:999, cursor:'pointer', border:`1px solid ${on?AC:'var(--color-border-tertiary)'}`, background:on?ACB:'transparent', color:on?ACD:'var(--color-text-secondary)' }}>
+                    {on?'✓ ':''}{role}
+                  </button>
+                )
+              })}
+            </div>
+            <p style={{ fontSize:11, color:'var(--color-text-tertiary)', marginTop:4 }}>※ 最終的な設定は管理者が確認・調整します</p>
+          </div>
+        )}
+        <div>
           <p style={{ fontSize:12, color:'var(--color-text-secondary)', marginBottom:4 }}>備考（任意）</p>
-          <input type="text" placeholder="入学年度・パートなど" value={form.note} onChange={e=>setForm({...form,note:e.target.value})} />
+          <input type="text" placeholder="連絡事項など" value={form.note} onChange={e=>setForm({...form,note:e.target.value})} />
         </div>
         {status==='error'&&<p style={{ fontSize:12, color:'var(--color-text-danger)' }}>送信に失敗しました。もう一度お試しください。</p>}
         <div style={{ display:'flex', gap:8 }}>
@@ -240,7 +261,7 @@ export default function MemberPage() {
                 <button onClick={()=>setShowRequest(true)} style={{ border:'none', background:'transparent', cursor:'pointer', color:'var(--color-text-secondary)', fontSize:13, display:'inline-flex', alignItems:'center', gap:4 }}>
                   <i className="ti ti-user-plus" style={{ fontSize:15 }}></i>メンバー登録を申請する
                 </button>
-              ) : <MemberRequestForm scriptUrl={scriptUrl} onClose={()=>setShowRequest(false)} />}
+              ) : <MemberRequestForm scriptUrl={scriptUrl} onClose={()=>setShowRequest(false)} availableRoles={data.memberRoles || []} />}
             </div>
           </>
         ) : (

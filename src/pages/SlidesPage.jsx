@@ -18,10 +18,10 @@ const slides = [
     render: () => (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 40 }}>
         <h1 style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: 16 }}>
-          出席管理
+          あてんど
         </h1>
         <p style={{ fontSize: 16, color: PGB, lineHeight: 1.8, marginBottom: 40 }}>
-          サークルの出席管理を、<br />もっとスマートに
+          サークルのイベント調整を、<br />もっとスマートに
         </p>
         <div style={{ width: 48, height: 2, background: PG, borderRadius: 1 }} />
         <p style={{ fontSize: 12, color: PGL, marginTop: 16 }}>完全無料 · 広告なし · データはあなたのGoogleシートに</p>
@@ -192,7 +192,7 @@ export default function SlidesPage() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: 420, marginBottom: 12 }}>
         <a href="/lp" style={{ color: '#6A6880', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-          出席管理
+          あてんど
         </a>
         <span style={{ color: '#6A6880', fontSize: 12 }}>{cur + 1} / {slides.length}</span>
       </div>

@@ -19,8 +19,16 @@ function seedData() {
     alertThreshold: 60,
     globalTags: ['全体', '新入生', '2年生', '対外試合'],
     members: ['あやか', 'みお', 'さくら', 'ひなた', 'ゆい', 'りん', 'まな', 'のあ'],
+    memberRoles: ['キャプテン', '副キャプテン', '会計', '1年', '2年', '3年'],
+    memberMeta: {
+      あやか: { grade: '24', roles: ['キャプテン', '3年'], memo: '練習メニュー担当。連絡はLINEが早い' },
+      みお:   { grade: '25', roles: ['会計', '2年'], memo: '会費の管理担当' },
+      さくら: { grade: '25', roles: ['2年'] },
+      ひなた: { grade: '26', roles: ['1年'], memo: 'バイトで火曜は遅れがち' },
+      ゆい:   { grade: '24', roles: ['副キャプテン', '3年'] },
+    },
     pendingMembers: [
-      { id: 'req1', realName: '田中陽菜', displayName: 'ひな', note: '新2年生・パート未定', at: '2026/6/28 21:10' },
+      { id: 'req1', realName: '田中陽菜', displayName: 'ひな', note: '新入生です！', grade: '26', roles: ['1年'], at: '2026/6/28 21:10' },
     ],
     schedulePolls: [
       {
@@ -85,9 +93,11 @@ export default function DemoPage() {
   const [expandedEvStatus, setExpandedEvStatus] = useState(new Set())
   const [evOrder,          setEvOrder]          = useState('desc')
   const [statOrder,        setStatOrder]        = useState('desc')
-  const [renamingMember, setRenamingMember] = useState(null)
   const [pendingChange, setPendingChange] = useState(null)
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
+  const [expandedMember, setExpandedMember] = useState(null)
+  const [roleInput, setRoleInput] = useState('')
+  const [editingReq, setEditingReq] = useState(null)
   const [reasonDraft, setReasonDraft] = useState({})
   const today = todayStr()
 
@@ -169,10 +179,23 @@ export default function DemoPage() {
     setPendingMemberDelete(null)
   }
 
-  const approveMember = (req) => {
-    if (data.members.includes(req.displayName)) return
-    setData(d => ({ ...d, members: [...d.members, req.displayName], pendingMembers: d.pendingMembers.filter(r => r.id !== req.id) }))
-    addLog({ by: '管理者', type: 'admin', eventName: '', member: req.displayName, before: '申請中', after: 'メンバー承認' })
+  const approveMember = (req, override) => {
+    const name = (override?.displayName || req.displayName).trim()
+    const grade = override ? override.grade : req.grade
+    const roles = override ? override.roles : req.roles
+    if (data.members.includes(name)) { alert(`「${name}」はすでに登録されています`); return }
+    setData(d => {
+      const meta = { ...(d.memberMeta || {}) }
+      const m = {}
+      if (grade) m.grade = grade
+      if (roles && roles.length) m.roles = roles
+      if (Object.keys(m).length) meta[name] = m
+      const roleSet = [...(d.memberRoles || [])]
+      ;(roles || []).forEach(r => { if (!roleSet.includes(r)) roleSet.push(r) })
+      return { ...d, members: [...d.members, name], memberMeta: meta, memberRoles: roleSet, pendingMembers: d.pendingMembers.filter(r => r.id !== req.id) }
+    })
+    addLog({ by: '管理者', type: 'admin', eventName: '', member: name, before: '申請中', after: 'メンバー承認' })
+    setEditingReq(null)
   }
   const rejectMember = (req) => {
     setData(d => ({ ...d, pendingMembers: d.pendingMembers.filter(r => r.id !== req.id) }))
@@ -566,46 +589,94 @@ export default function DemoPage() {
                   </div>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {data.members.filter(m => m.includes(memberSearch)).map((m) => (
-                    <Card key={m} style={{ padding: '10px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <Avatar name={m} />
-                          {renamingMember === m ? (
-                            <input autoFocus defaultValue={m}
-                              onBlur={e => {
-                                const newName = e.target.value.trim()
-                                if (newName && newName !== m && !data.members.includes(newName)) {
-                                  setData(d => {
-                                    const members = d.members.map(x => x === m ? newName : x)
-                                    const events = d.events.map(ev => {
-                                      const att = { ...ev.attendance }
-                                      if (att[m] !== undefined) { att[newName] = att[m]; delete att[m] }
-                                      return { ...ev, attendance: att }
-                                    })
-                                    return { ...d, members, events }
-                                  })
-                                  addLog({ by: '管理者', type: 'admin', eventName: '', member: m, before: m, after: newName })
-                                }
-                                setRenamingMember(null)
+                  {data.members.filter(m => {
+                    const q = memberSearch.trim().toLowerCase()
+                    if (!q) return true
+                    const meta = data.memberMeta?.[m] || {}
+                    return m.toLowerCase().includes(q) || (meta.grade || '').toLowerCase().includes(q) || (meta.roles || []).some(r => r.toLowerCase().includes(q))
+                  }).map((m) => {
+                    const meta = data.memberMeta?.[m] || {}
+                    const roles = meta.roles || []
+                    const isExpanded = expandedMember === m
+                    const setMeta = (patch) => setData(d => ({ ...d, memberMeta: { ...(d.memberMeta || {}), [m]: { ...((d.memberMeta || {})[m] || {}), ...patch } } }))
+                    return (
+                      <Card key={m} style={{ padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                            <Avatar name={m} />
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 500 }}>{m}</span>
+                                {meta.grade && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)' }}>{meta.grade}</span>}
+                              </div>
+                              {roles.length > 0 && (
+                                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                                  {roles.map(r => <span key={r} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: ACB, color: ACD }}>{r}</span>)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            <button onClick={() => setExpandedMember(isExpanded ? null : m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: isExpanded ? AC : 'var(--color-text-secondary)' }}>
+                              <i className="ti ti-edit" style={{ fontSize: 15 }}></i>
+                            </button>
+                            <button onClick={() => setPendingMemberDelete(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
+                              <i className="ti ti-x" style={{ fontSize: 14 }}></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                            <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>表示名</label>
+                            <input type="text" defaultValue={m} key={`rn-${m}`}
+                              onKeyDown={e => {
+                                if (e.key !== 'Enter') return
+                                const nn = e.target.value.trim()
+                                if (!nn || nn === m || data.members.includes(nn)) return
+                                setData(d => {
+                                  const mm = { ...(d.memberMeta || {}) }; if (mm[m]) { mm[nn] = mm[m]; delete mm[m] }
+                                  return {
+                                    ...d,
+                                    members: d.members.map(x => x === m ? nn : x),
+                                    memberMeta: mm,
+                                    events: d.events.map(ev => { const a = { ...ev.attendance }; if (a[m] !== undefined) { a[nn] = a[m]; delete a[m] } return { ...ev, attendance: a } }),
+                                    schedulePolls: (d.schedulePolls || []).map(p => { const r = { ...(p.responses || {}) }; if (r[m] !== undefined) { r[nn] = r[m]; delete r[m] } return { ...p, responses: r } }),
+                                  }
+                                })
+                                setExpandedMember(nn)
                               }}
-                              onKeyDown={e => { if (e.key==='Enter') e.target.blur(); if (e.key==='Escape') setRenamingMember(null) }}
-                              style={{ fontWeight: 500, fontSize: 14, width: 110, padding: '2px 8px' }} />
-                          ) : (
-                            <span style={{ fontWeight: 500 }}>{m}</span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => setRenamingMember(renamingMember === m ? null : m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-secondary)' }}>
-                            <i className="ti ti-pencil" style={{ fontSize: 14 }}></i>
-                          </button>
-                          <button onClick={() => setPendingMemberDelete(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
-                            <i className="ti ti-x" style={{ fontSize: 14 }}></i>
-                          </button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                              style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />
+
+                            <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>学年 / ID（2桁）</label>
+                            <input type="text" inputMode="numeric" maxLength={2} placeholder="例: 25" value={meta.grade || ''} onChange={e => setMeta({ grade: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) })} style={{ width: 80, marginBottom: 12 }} />
+
+                            <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>ロール（複数選択可）</label>
+                            {(data.memberRoles || []).length === 0 ? (
+                              <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 12 }}>設定タブの「ロール管理」でロールを追加できます</p>
+                            ) : (
+                              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+                                {(data.memberRoles || []).map(role => {
+                                  const on = roles.includes(role)
+                                  return (
+                                    <button key={role} onClick={() => setMeta({ roles: on ? roles.filter(r => r !== role) : [...roles, role] })} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? AC : 'var(--color-border-tertiary)'}`, background: on ? ACB : 'transparent', color: on ? ACD : 'var(--color-text-secondary)' }}>
+                                      {on ? '✓ ' : ''}{role}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+
+                            <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                              <i className="ti ti-lock" style={{ fontSize: 12 }}></i>管理者メモ（メンバーには表示されません・100文字以内）
+                            </label>
+                            <textarea maxLength={100} placeholder="例: 会計担当。連絡はLINEが早い" value={meta.memo || ''} onChange={e => setMeta({ memo: e.target.value.slice(0, 100) })} style={{ width: '100%', minHeight: 56, boxSizing: 'border-box', fontSize: 13, resize: 'vertical' }} />
+                            <p style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textAlign: 'right', margin: '2px 0 0' }}>{(meta.memo || '').length}/100</p>
+                          </div>
+                        )}
+                      </Card>
+                    )
+                  })}
                 </div>
               </>
             )}
@@ -690,22 +761,62 @@ export default function DemoPage() {
                     <i className="ti ti-user-check" style={{ fontSize: 36 }}></i>
                     <p style={{ marginTop: 8 }}>現在申請はありません</p>
                   </div>
-                ) : data.pendingMembers.map(req => (
-                  <Card key={req.id} style={{ padding: 14, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ fontWeight: 500, margin: 0 }}>{req.displayName} <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 400 }}>（表示名）</span></p>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '3px 0' }}>本名: {req.realName}</p>
-                        {req.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0' }}>備考: {req.note}</p>}
-                        <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>{req.at}</p>
+                ) : data.pendingMembers.map(req => {
+                  const isEditing = editingReq?.id === req.id
+                  return (
+                    <Card key={req.id} style={{ padding: 14, marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{ fontWeight: 500, margin: 0 }}>{req.displayName} <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 400 }}>（表示名）</span></p>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '3px 0' }}>本名: {req.realName}</p>
+                          {(req.grade || (req.roles && req.roles.length > 0)) && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '4px 0' }}>
+                              {req.grade && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)' }}>{req.grade}</span>}
+                              {(req.roles || []).map(r => <span key={r} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: ACB, color: ACD }}>{r}</span>)}
+                              <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>（自己申告）</span>
+                            </div>
+                          )}
+                          {req.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0' }}>備考: {req.note}</p>}
+                          <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>{req.at}</p>
+                        </div>
+                        {!isEditing && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                            <button onClick={() => approveMember(req)} style={{ padding: '6px 14px', background: '#1D9E75', border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>承認</button>
+                            <button onClick={() => setEditingReq({ id: req.id, displayName: req.displayName, grade: req.grade || '', roles: req.roles || [] })} style={{ padding: '6px 14px', background: ACB, border: 'none', borderRadius: 'var(--border-radius-md)', color: ACD, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>編集して承認</button>
+                            <button onClick={() => rejectMember(req)} style={{ padding: '6px 14px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>却下</button>
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button onClick={() => approveMember(req)} style={{ padding: '6px 14px', background: '#1D9E75', border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>承認</button>
-                        <button onClick={() => rejectMember(req)} style={{ padding: '6px 14px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>却下</button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
+                      {isEditing && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                          <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>表示名</label>
+                          <input type="text" value={editingReq.displayName} onChange={e => setEditingReq({ ...editingReq, displayName: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />
+                          <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>学年 / ID（2桁）</label>
+                          <input type="text" inputMode="numeric" maxLength={2} placeholder="例: 25" value={editingReq.grade} onChange={e => setEditingReq({ ...editingReq, grade: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) })} style={{ width: 80, marginBottom: 12 }} />
+                          <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>ロール</label>
+                          {(data.memberRoles || []).length === 0 ? (
+                            <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 12 }}>設定タブの「ロール管理」でロールを追加できます</p>
+                          ) : (
+                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+                              {(data.memberRoles || []).map(role => {
+                                const on = editingReq.roles.includes(role)
+                                return (
+                                  <button key={role} onClick={() => setEditingReq({ ...editingReq, roles: on ? editingReq.roles.filter(r => r !== role) : [...editingReq.roles, role] })} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? AC : 'var(--color-border-tertiary)'}`, background: on ? ACB : 'transparent', color: on ? ACD : 'var(--color-text-secondary)' }}>
+                                    {on ? '✓ ' : ''}{role}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => approveMember(req, editingReq)} style={{ flex: 1, padding: '9px', background: '#1D9E75', border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>この内容で承認</button>
+                            <button onClick={() => setEditingReq(null)} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  )
+                })}
               </div>
             )}
 
@@ -719,6 +830,48 @@ export default function DemoPage() {
                   </div>
                   <input type="text" value={data.circleName} onChange={e => setData({ ...data, circleName: e.target.value })} />
                   <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 6 }}>メンバー側の画面タイトルに表示されます</p>
+                </Card>
+
+                {/* Role manager */}
+                <Card style={{ padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                    <i className="ti ti-user-star" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                    <div>
+                      <p style={{ fontWeight: 500, margin: 0 }}>ロール管理</p>
+                      <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>役職や班などのロールを作ると、メンバー管理・申請画面で割り当てられます</p>
+                    </div>
+                  </div>
+                  {(data.memberRoles || []).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10 }}>
+                      {(data.memberRoles || []).map((role, i, arr) => {
+                        const count = Object.values(data.memberMeta || {}).filter(mt => (mt.roles || []).includes(role)).length
+                        return (
+                          <div key={role} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <button onClick={() => { if (i === 0) return; const g = [...arr];[g[i - 1], g[i]] = [g[i], g[i - 1]]; setData(d => ({ ...d, memberRoles: g })) }} disabled={i === 0} style={{ border: 'none', background: 'transparent', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--color-border-secondary)' : 'var(--color-text-secondary)', padding: 0, fontSize: 11, lineHeight: 1.2 }}>▲</button>
+                              <button onClick={() => { if (i === arr.length - 1) return; const g = [...arr];[g[i], g[i + 1]] = [g[i + 1], g[i]]; setData(d => ({ ...d, memberRoles: g })) }} disabled={i === arr.length - 1} style={{ border: 'none', background: 'transparent', cursor: i === arr.length - 1 ? 'default' : 'pointer', color: i === arr.length - 1 ? 'var(--color-border-secondary)' : 'var(--color-text-secondary)', padding: 0, fontSize: 11, lineHeight: 1.2 }}>▼</button>
+                            </div>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12, flex: 1 }}>
+                              {role}
+                              {count > 0 && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{count}人</span>}
+                              <button onClick={() => {
+                                setData(d => {
+                                  const meta = { ...(d.memberMeta || {}) }
+                                  Object.keys(meta).forEach(name => { if (Array.isArray(meta[name]?.roles)) meta[name] = { ...meta[name], roles: meta[name].roles.filter(r => r !== role) } })
+                                  return { ...d, memberRoles: (d.memberRoles || []).filter(r => r !== role), memberMeta: meta }
+                                })
+                              }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ACD, fontSize: 13, padding: 0, lineHeight: 1, marginLeft: 'auto' }}>×</button>
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="text" placeholder="例: 会計 / 1年班 / パートリーダー" value={roleInput} onChange={e => setRoleInput(e.target.value)}
+                      onKeyDown={e => { if (e.key !== 'Enter') return; const r = roleInput.trim(); if (!r || (data.memberRoles || []).includes(r)) { setRoleInput(''); return } setData(d => ({ ...d, memberRoles: [...(d.memberRoles || []), r] })); setRoleInput('') }} style={{ flex: 1 }} />
+                    <button onClick={() => { const r = roleInput.trim(); if (!r || (data.memberRoles || []).includes(r)) { setRoleInput(''); return } setData(d => ({ ...d, memberRoles: [...(d.memberRoles || []), r] })); setRoleInput('') }} style={{ padding: '0 16px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>追加</button>
+                  </div>
                 </Card>
 
                 <Card style={{ padding: 14, marginBottom: 12 }}>

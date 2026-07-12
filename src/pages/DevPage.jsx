@@ -6,7 +6,7 @@ import { getErrors, clearErrors } from '../lib/errorLog.js'
 const DEV_PW       = import.meta.env.VITE_DEV_PASSWORD || '0000'
 const BUG_URL       = import.meta.env.VITE_BUG_REPORT_URL || ''
 const ANALYTICS_URL = import.meta.env.VITE_ANALYTICS_URL || ''
-const APP_VER      = '2.2.0'
+const APP_VER      = '2.3.0'
 const CONTACT      = 'nalufurumi@gmail.com'
 const REPO_URL     = 'https://github.com/nalufurumi/circle-attendance'
 const PROD_URL     = 'https://circle-attendance-chi.vercel.app'
@@ -34,7 +34,7 @@ function doPost(e) {
     payload.steps||'',payload.email||'',payload.version||'',payload.ua||'']);
   MailApp.sendEmail({
     to: NOTIFY_EMAIL,
-    subject: '[出席管理] '+(payload.type==='feature'?'機能要望':'バグ報告')+': '+(payload.message||'').slice(0,50),
+    subject: '[あてんど] '+(payload.type==='feature'?'機能要望':'バグ報告')+': '+(payload.message||'').slice(0,50),
     body: '【種別】'+payload.type+'\n【内容】'+payload.message+
           '\n【再現手順】'+(payload.steps||'未記入')+
           '\n【連絡先】'+(payload.email||'未記入')+
@@ -47,7 +47,7 @@ function out(t) {
   return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.JSON);
 }\``
 
-const ANALYTICS_SCRIPT = `// 出席管理アプリ — 匿名テレメトリ収集スクリプト
+const ANALYTICS_SCRIPT = `// あてんど（イベント調整アプリ）— 匿名テレメトリ収集スクリプト
 // 個人情報（メンバー名・出欠内容・理由・団体名・メール）は一切受け取りません。
 // 受け取るのは「ハッシュ化された団体ID」「役割(admin/member)」「件数」「エラー内容」のみです。
 
@@ -408,6 +408,10 @@ export default function DevPage() {
       polls.forEach(p => Object.keys(p.responses || {}).forEach(name => { if (!members.includes(name)) orphanedPollResp.push({ poll: p.title, member: name }) }))
       if (orphanedPollResp.length > 0) issues.push({ id: 'orphanedPollResp', level: 'warn', label: '削除済みメンバーの日程調整回答', count: orphanedPollResp.length, detail: orphanedPollResp.slice(0, 5).map(o => `${o.member}（${o.poll}）`).join('、'), fixable: true })
 
+      // 9. Orphaned member meta (role/grade/memo for deleted members)
+      const orphanedMeta = Object.keys(d.memberMeta || {}).filter(name => !members.includes(name))
+      if (orphanedMeta.length > 0) issues.push({ id: 'orphanedMeta', level: 'warn', label: '削除済みメンバーのロール/学年/メモ', count: orphanedMeta.length, detail: orphanedMeta.slice(0, 5).join('、'), fixable: true })
+
       setHealthResult({ ok: true, issues, memberCount: members.length, eventCount: events.length, raw: d })
     } catch (e) {
       setHealthResult({ _error: e.message })
@@ -444,6 +448,13 @@ export default function DevPage() {
         Object.entries(p.responses || {}).forEach(([name, v]) => { if (members.includes(name)) responses[name] = v })
         return { ...p, responses }
       })
+
+      // Fix orphaned member meta (role/grade/memo for deleted members)
+      if (d.memberMeta) {
+        const cleanMeta = {}
+        Object.entries(d.memberMeta).forEach(([name, v]) => { if (members.includes(name)) cleanMeta[name] = v })
+        d.memberMeta = cleanMeta
+      }
 
       await saveData(scriptUrl, d)
       setHealthResult({ ...healthResult, _fixed: true })
@@ -502,7 +513,7 @@ export default function DevPage() {
       <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '2rem', maxWidth: 320, width: '100%', textAlign: 'center' }}>
         <div style={{ fontSize: 36, marginBottom: 10 }}>🛠</div>
         <p style={{ color: '#f0f0f5', fontWeight: 600, fontSize: 16, marginBottom: 4 }}>Developer Tools</p>
-        <p style={{ color: T.textDim, fontSize: 11, marginBottom: 24 }}>circle-attendance v{APP_VER}</p>
+        <p style={{ color: T.textDim, fontSize: 11, marginBottom: 24 }}>あてんど v{APP_VER}</p>
         <input
           type="password" placeholder="password" value={pw}
           onChange={e => setPw(e.target.value)}

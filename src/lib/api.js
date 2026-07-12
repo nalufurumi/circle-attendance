@@ -1,5 +1,5 @@
 const TIMEOUT = 10000
-const CURRENT_DATA_VERSION = 3
+const CURRENT_DATA_VERSION = 4
 
 /** Convert old string attendance value to new object format */
 function upgradeAtt(val) {
@@ -11,7 +11,7 @@ function upgradeAtt(val) {
 /** Run all schema migrations to bring data up to current version */
 function migrate(raw) {
   if (!raw || typeof raw !== 'object') {
-    return { members: [], events: [], circleName: '', accentColor: 'peacock', notice: '', alertThreshold: null, pendingMembers: [], dataVersion: CURRENT_DATA_VERSION }
+    return { members: [], events: [], circleName: '', accentColor: 'peacock', notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], schedulePolls: [], memberMeta: {}, memberRoles: [], dataVersion: CURRENT_DATA_VERSION }
   }
   const v = typeof raw.dataVersion === 'number' ? raw.dataVersion : 1
   let d = { ...raw }
@@ -44,6 +44,12 @@ function migrate(raw) {
 
   if (!d.globalTags) d.globalTags = []
   if (!d.schedulePolls) d.schedulePolls = []
+
+  // v3 → v4: メンバーのメタ情報（ロール・学年・管理者メモ）を分離マップで追加
+  // members は名前配列のまま維持し、attendance等のキー参照を壊さない
+  if (!d.memberMeta || typeof d.memberMeta !== 'object') d.memberMeta = {}
+  if (!Array.isArray(d.memberRoles)) d.memberRoles = []  // サークル共通のロール定義（並び順つき）
+
   d.dataVersion = CURRENT_DATA_VERSION
   return d
 }

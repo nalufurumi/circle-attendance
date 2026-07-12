@@ -56,7 +56,7 @@ export default function LandingPage() {
       {/* ── Nav ── */}
       <nav style={{ background: 'rgba(248,246,242,0.9)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: `1px solid ${OFF2}`, padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <a href="/lp" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: '#18182A' }}>
-          <span style={{ fontWeight: 700, fontSize: 17 }}>出席管理</span>
+          <span style={{ fontWeight: 700, fontSize: 17 }}>あてんど</span>
         </a>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <a href="/demo" style={{ fontSize: 13, color: PGD, textDecoration: 'none', fontWeight: 500 }}>デモ</a>
@@ -68,12 +68,12 @@ export default function LandingPage() {
       <Section style={{ padding: '80px 24px 64px', textAlign: 'center', background: `linear-gradient(180deg, ${OFF} 0%, #fff 100%)` }}>
         <Tag>大学サークル向け 無料ツール</Tag>
         <h1 style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.5px', marginBottom: 16, color: '#18182A' }}>
-          サークルの出席管理を、<br />
+          サークルのイベント調整を、<br />
           <span style={{ color: PG }}>もっとスマートに</span>
         </h1>
         <p style={{ fontSize: 15, color: '#6A6880', lineHeight: 1.8, marginBottom: 32, maxWidth: 360, margin: '0 auto 32px' }}>
+          イベント調整アプリ「あてんど」なら、<br />
           日程調整から出欠管理まで、スマホ一台で完結。<br />
-          管理者は統計・ログで全体を把握。<br />
           完全無料・広告なし。
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
@@ -226,14 +226,14 @@ export default function LandingPage() {
       {/* ── Footer ── */}
       <footer style={{ background: '#18182A', padding: '32px 24px', textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ color: '#fff', fontWeight: 600 }}>出席管理</span>
+          <span style={{ color: '#fff', fontWeight: 600 }}>あてんど</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 16 }}>
           {[['体験版', '/demo'], ['お問い合わせ', '/report'], ['バグ報告', '/report']].map(([l, h]) => (
             <a key={l} href={h} style={{ color: '#6A6880', fontSize: 12, textDecoration: 'none' }}>{l}</a>
           ))}
         </div>
-        <p style={{ color: '#6A6880', fontSize: 11 }}>© 2026 出席管理 · 完全無料・広告なし</p>
+        <p style={{ color: '#6A6880', fontSize: 11 }}>© 2026 あてんど · 完全無料・広告なし</p>
         <p style={{ color: '#4A4860', fontSize: 10, marginTop: 6 }}>Produced by Nalu Furumi / CreativeTeam Lunar</p>
       </footer>
     </div>

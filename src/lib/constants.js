@@ -185,7 +185,8 @@ export function computeStats(events, member, now = new Date()) {
 
 export const DEFAULT_DATA = {
   members: [], events: [], circleName: '', accentColor: 'peacock',
-  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], schedulePolls: [], dataVersion: 3,
+  notice: '', alertThreshold: null, pendingMembers: [], globalTags: [], schedulePolls: [],
+  memberMeta: {}, memberRoles: [], dataVersion: 4,
 }
 
 // ── Apps Script (v2 with log support) ────────────────────────

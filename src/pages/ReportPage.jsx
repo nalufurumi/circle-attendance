@@ -6,7 +6,7 @@ const AC  = 'var(--accent)'
 const ACB = 'var(--accent-bg)'
 const ACD = 'var(--accent-dark)'
 
-const APP_VER     = '2.2.0'
+const APP_VER     = '2.3.0'
 const CONTACT     = 'nalufurumi@gmail.com'
 const BUG_URL     = import.meta.env.VITE_BUG_REPORT_URL || ''
 
@@ -56,7 +56,7 @@ export default function ReportPage() {
     } else {
       // Fallback: mailto
       const body = `【種別】${type}\n【内容】${message}\n\n【再現手順】\n${steps || '（未記入）'}\n\n【連絡先】${email || '（未記入）'}\n\n【バージョン】${APP_VER}\n【環境】${navigator.userAgent}`
-      window.location.href = `mailto:${CONTACT}?subject=[出席管理 v${APP_VER}] ${TYPES.find(t=>t.id===type)?.label}&body=${encodeURIComponent(body)}`
+      window.location.href = `mailto:${CONTACT}?subject=[あてんど v${APP_VER}] ${TYPES.find(t=>t.id===type)?.label}&body=${encodeURIComponent(body)}`
       setStatus('sent')
     }
   }
@@ -178,7 +178,7 @@ export default function ReportPage() {
 
             {/* App version */}
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 16 }}>
-              出席管理アプリ v{APP_VER}
+              あてんど v{APP_VER}
             </p>
           </>
         )}

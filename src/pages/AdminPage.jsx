@@ -58,7 +58,7 @@ function SignInView({ onCredential }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--color-background-tertiary)' }}>
       <Card style={{ padding: '2.5rem 2rem', maxWidth: 340, width: '100%', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>出席管理</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 6px' }}>あてんど</h1>
         <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 28, lineHeight: 1.6 }}>
           サークル管理者はGoogleアカウントでログインしてください。<br />
           データはあなた自身のGoogleスプレッドシートに保存されます。
@@ -190,7 +190,9 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [memberSearch, setMemberSearch] = useState('')   // filter member list
   const [evSearch,     setEvSearch]     = useState('')   // filter names inside expanded event
   const [statOrder,    setStatOrder]    = useState('desc') // 'desc'=高→低 'asc'=低→高
-  const [renamingMember, setRenamingMember] = useState(null) // member name being renamed
+  const [expandedMember, setExpandedMember] = useState(null) // member whose detail panel is open
+  const [roleInput, setRoleInput] = useState('') // new role being typed in settings
+  const [editingReq, setEditingReq] = useState(null) // { id, displayName, grade, roles } being edited before approval
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
   const [newTagInput,  setNewTagInput]  = useState('')
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
@@ -234,13 +236,30 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   }
   const removeMember = name => {
     if (!confirm(`「${name}」を削除しますか？`)) return
-    const nd = { ...data, members: data.members.filter(m => m !== name), events: data.events.map(e => { const a = { ...e.attendance }; delete a[name]; return { ...e, attendance: a } }) }
+    const meta = { ...(data.memberMeta || {}) }; delete meta[name]
+    const nd = { ...data, members: data.members.filter(m => m !== name), memberMeta: meta, events: data.events.map(e => { const a = { ...e.attendance }; delete a[name]; return { ...e, attendance: a } }) }
     update(nd, mkLog({ by: adminLabel, type: 'admin', member: name, before: 'メンバー存在', after: 'メンバー削除' }))
   }
   const moveMember = (i, d) => {
     const ms = [...data.members]; const j = i + d
     if (j < 0 || j >= ms.length) return
     ;[ms[i], ms[j]] = [ms[j], ms[i]]; update({ ...data, members: ms })
+  }
+  // メンバーのメタ情報（ロール・学年・管理者メモ）を更新
+  const updateMemberMeta = (name, patch) => {
+    const meta = { ...(data.memberMeta || {}) }
+    meta[name] = { ...(meta[name] || {}), ...patch }
+    update({ ...data, memberMeta: meta })
+  }
+  // ロール名変更時、そのロールを持つ全メンバーのメタも追従させる（表示名リネームと同様の一貫性）
+  const renameRoleEverywhere = (oldRole, newRole) => {
+    const meta = { ...(data.memberMeta || {}) }
+    Object.keys(meta).forEach(name => {
+      if (Array.isArray(meta[name]?.roles)) {
+        meta[name] = { ...meta[name], roles: meta[name].roles.map(r => r === oldRole ? newRole : r) }
+      }
+    })
+    return meta
   }
   const [eventFormError, setEventFormError] = useState('')
 
@@ -662,24 +681,115 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {data.members.filter(m => m.includes(memberSearch)).map((m, i) => (
-                <Card key={m} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14 }}>{m.slice(0, 1)}</div>
-                    <span style={{ fontWeight: 500 }}>{m}</span>
-                  </div>
-                  <div style={{ display: 'flex' }}>
-                    {memberSort === 'registration' && [[-1, 'ti-arrow-up'], [1, 'ti-arrow-down']].map(([d, ic]) => (
-                      <button key={d} onClick={() => moveMember(i, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === data.members.length - 1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', opacity: ((d === -1 && i === 0) || (d === 1 && i === data.members.length - 1)) ? 0.2 : 1, color: 'var(--color-text-secondary)' }}>
-                        <i className={`ti ${ic}`} style={{ fontSize: 14 }}></i>
-                      </button>
-                    ))}
-                    <button onClick={() => removeMember(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
-                      <i className="ti ti-x" style={{ fontSize: 14 }}></i>
-                    </button>
-                  </div>
-                </Card>
-              ))}
+              {data.members.filter(m => {
+                const q = memberSearch.trim().toLowerCase()
+                if (!q) return true
+                const meta = data.memberMeta?.[m] || {}
+                return m.toLowerCase().includes(q)
+                  || (meta.grade || '').toLowerCase().includes(q)
+                  || (meta.roles || []).some(r => r.toLowerCase().includes(q))
+              }).map((m, i) => {
+                const meta = data.memberMeta?.[m] || {}
+                const roles = meta.roles || []
+                const isExpanded = expandedMember === m
+                return (
+                  <Card key={m} style={{ padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: ACB, color: ACD, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: 14, flexShrink: 0 }}>{m.slice(0, 1)}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 500 }}>{m}</span>
+                            {meta.grade && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)' }}>{meta.grade}</span>}
+                          </div>
+                          {roles.length > 0 && (
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+                              {roles.map(r => <span key={r} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: ACB, color: ACD }}>{r}</span>)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexShrink: 0 }}>
+                        <button onClick={() => setExpandedMember(isExpanded ? null : m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: isExpanded ? AC : 'var(--color-text-secondary)' }} title="詳細を編集">
+                          <i className="ti ti-edit" style={{ fontSize: 15 }}></i>
+                        </button>
+                        {memberSort === 'registration' && [[-1, 'ti-arrow-up'], [1, 'ti-arrow-down']].map(([d, ic]) => (
+                          <button key={d} onClick={() => moveMember(i, d)} disabled={(d === -1 && i === 0) || (d === 1 && i === data.members.length - 1)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', opacity: ((d === -1 && i === 0) || (d === 1 && i === data.members.length - 1)) ? 0.2 : 1, color: 'var(--color-text-secondary)' }}>
+                            <i className={`ti ${ic}`} style={{ fontSize: 14 }}></i>
+                          </button>
+                        ))}
+                        <button onClick={() => removeMember(m)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 6px', color: 'var(--color-text-danger)' }}>
+                          <i className="ti ti-x" style={{ fontSize: 14 }}></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                        {/* 表示名の変更 */}
+                        <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>表示名</label>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                          <input type="text" defaultValue={m} key={`rename-${m}`}
+                            onKeyDown={e => {
+                              if (e.key !== 'Enter') return
+                              const nn = e.target.value.trim()
+                              if (!nn || nn === m) return
+                              if (data.members.includes(nn)) { alert(`「${nn}」はすでに存在します`); return }
+                              const meta = { ...(data.memberMeta || {}) }
+                              if (meta[m]) { meta[nn] = meta[m]; delete meta[m] }
+                              const nd = {
+                                ...data,
+                                members: data.members.map(x => x === m ? nn : x),
+                                memberMeta: meta,
+                                events: data.events.map(ev => { const a = { ...ev.attendance }; if (a[m] !== undefined) { a[nn] = a[m]; delete a[m] } return { ...ev, attendance: a } }),
+                                schedulePolls: (data.schedulePolls || []).map(p => { const r = { ...(p.responses || {}) }; if (r[m] !== undefined) { r[nn] = r[m]; delete r[m] } return { ...p, responses: r } }),
+                              }
+                              update(nd, mkLog({ by: adminLabel, type: 'admin', member: m, before: m, after: `表示名変更→${nn}` }))
+                              setExpandedMember(nn)
+                            }}
+                            style={{ flex: 1 }} />
+                          <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', alignSelf: 'center', flexShrink: 0 }}>Enterで確定</span>
+                        </div>
+
+                        {/* 学年/ID */}
+                        <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>学年 / ID（2桁）</label>
+                        <input type="text" inputMode="numeric" maxLength={2} placeholder="例: 25" value={meta.grade || ''}
+                          onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 2); updateMemberMeta(m, { grade: v }) }}
+                          style={{ width: 80, marginBottom: 12 }} />
+
+                        {/* ロール選択 */}
+                        <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>ロール（複数選択可）</label>
+                        {(data.memberRoles || []).length === 0 ? (
+                          <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 12 }}>設定タブの「ロール管理」でロールを追加すると、ここで選べます</p>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+                            {(data.memberRoles || []).map(role => {
+                              const on = roles.includes(role)
+                              return (
+                                <button key={role} onClick={() => {
+                                  const next = on ? roles.filter(r => r !== role) : [...roles, role]
+                                  updateMemberMeta(m, { roles: next })
+                                }} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? AC : 'var(--color-border-tertiary)'}`, background: on ? ACB : 'transparent', color: on ? ACD : 'var(--color-text-secondary)' }}>
+                                  {on ? '✓ ' : ''}{role}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* 管理者メモ（管理者のみ・100文字以下） */}
+                        <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                          <i className="ti ti-lock" style={{ fontSize: 12 }}></i>管理者メモ（メンバーには表示されません・100文字以内）
+                        </label>
+                        <textarea maxLength={100} placeholder="例: 会計担当。連絡はLINEが早い" value={meta.memo || ''}
+                          onChange={e => updateMemberMeta(m, { memo: e.target.value.slice(0, 100) })}
+                          style={{ width: '100%', minHeight: 56, boxSizing: 'border-box', fontSize: 13, resize: 'vertical' }} />
+                        <p style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textAlign: 'right', margin: '2px 0 0' }}>{(meta.memo || '').length}/100</p>
+                      </div>
+                    )}
+                  </Card>
+                )
+              })}
             </div>
           </div>
         )}
@@ -820,29 +930,93 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                 <p style={{ marginTop: 8 }}>現在申請はありません</p>
                 <p style={{ fontSize: 12, marginTop: 4 }}>新しい申請は自動で読み込まれます</p>
               </div>
-            ) : data.pendingMembers.map(req => (
-              <Card key={req.id} style={{ padding: 14, marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontWeight: 500, margin: 0 }}>{req.displayName} <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 400 }}>（表示名）</span></p>
-                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '3px 0' }}>本名: {req.realName}</p>
-                    {req.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0' }}>備考: {req.note}</p>}
-                    <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>{req.at}</p>
+            ) : data.pendingMembers.map(req => {
+              const isEditing = editingReq?.id === req.id
+              // 承認処理: 表示名・学年・ロールを確定してメンバー＋メタに反映
+              const approve = (displayName, grade, roles) => {
+                const name = (displayName || req.displayName).trim()
+                if (data.members.includes(name)) { alert(`「${name}」はすでに登録されています`); return }
+                const meta = { ...(data.memberMeta || {}) }
+                const m = {}
+                if (grade) m.grade = grade
+                if (roles && roles.length) m.roles = roles
+                if (Object.keys(m).length) meta[name] = m
+                // 申請に含まれていた新規ロールは、サークル共通のロール定義にも取り込む
+                const roleSet = [...(data.memberRoles || [])]
+                ;(roles || []).forEach(r => { if (!roleSet.includes(r)) roleSet.push(r) })
+                const nd = {
+                  ...data,
+                  members: [...data.members, name],
+                  memberMeta: meta,
+                  memberRoles: roleSet,
+                  pendingMembers: data.pendingMembers.filter(r => r.id !== req.id),
+                }
+                update(nd, mkLog({ by: adminLabel, type: 'admin', member: name, before: '申請中', after: 'メンバー承認' }))
+                setEditingReq(null)
+              }
+              return (
+                <Card key={req.id} style={{ padding: 14, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ fontWeight: 500, margin: 0 }}>{req.displayName} <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 400 }}>（表示名）</span></p>
+                      <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '3px 0' }}>本名: {req.realName}</p>
+                      {/* 申請時に自己申告された学年・ロール */}
+                      {(req.grade || (req.roles && req.roles.length > 0)) && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', margin: '4px 0' }}>
+                          {req.grade && <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)' }}>{req.grade}</span>}
+                          {(req.roles || []).map(r => <span key={r} style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: ACB, color: ACD }}>{r}</span>)}
+                          <span style={{ fontSize: 10, color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>（自己申告）</span>
+                        </div>
+                      )}
+                      {req.note && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '2px 0' }}>備考: {req.note}</p>}
+                      <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>{req.at}</p>
+                    </div>
+                    {!isEditing && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => approve(req.displayName, req.grade, req.roles)} style={{ padding: '6px 14px', background: GR, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>承認</button>
+                        <button onClick={() => setEditingReq({ id: req.id, displayName: req.displayName, grade: req.grade || '', roles: req.roles || [] })} style={{ padding: '6px 14px', background: ACB, border: 'none', borderRadius: 'var(--border-radius-md)', color: ACD, cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>編集して承認</button>
+                        <button onClick={() => {
+                          if (!confirm(`「${req.displayName}」の申請を却下しますか？`)) return
+                          update({ ...data, pendingMembers: data.pendingMembers.filter(r => r.id !== req.id) }, mkLog({ by: adminLabel, type: 'admin', member: req.displayName, before: '申請中', after: '却下' }))
+                        }} style={{ padding: '6px 14px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>却下</button>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => {
-                      if (data.members.includes(req.displayName)) { alert(`「${req.displayName}」はすでに登録されています`); return }
-                      const nd = { ...data, members: [...data.members, req.displayName], pendingMembers: data.pendingMembers.filter(r => r.id !== req.id) }
-                      update(nd, mkLog({ by: adminLabel, type: 'admin', member: req.displayName, before: '申請中', after: 'メンバー承認' }))
-                    }} style={{ padding: '6px 14px', background: GR, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>承認</button>
-                    <button onClick={() => {
-                      if (!confirm(`「${req.displayName}」の申請を却下しますか？`)) return
-                      update({ ...data, pendingMembers: data.pendingMembers.filter(r => r.id !== req.id) }, mkLog({ by: adminLabel, type: 'admin', member: req.displayName, before: '申請中', after: '却下' }))
-                    }} style={{ padding: '6px 14px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: 12 }}>却下</button>
-                  </div>
-                </div>
-              </Card>
-            ))}
+
+                  {/* 編集して承認パネル */}
+                  {isEditing && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                      <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>表示名</label>
+                      <input type="text" value={editingReq.displayName} onChange={e => setEditingReq({ ...editingReq, displayName: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />
+
+                      <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>学年 / ID（2桁）</label>
+                      <input type="text" inputMode="numeric" maxLength={2} placeholder="例: 25" value={editingReq.grade} onChange={e => setEditingReq({ ...editingReq, grade: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) })} style={{ width: 80, marginBottom: 12 }} />
+
+                      <label style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>ロール</label>
+                      {(data.memberRoles || []).length === 0 ? (
+                        <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 12 }}>設定タブの「ロール管理」でロールを追加できます</p>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 12 }}>
+                          {(data.memberRoles || []).map(role => {
+                            const on = editingReq.roles.includes(role)
+                            return (
+                              <button key={role} onClick={() => setEditingReq({ ...editingReq, roles: on ? editingReq.roles.filter(r => r !== role) : [...editingReq.roles, role] })} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? AC : 'var(--color-border-tertiary)'}`, background: on ? ACB : 'transparent', color: on ? ACD : 'var(--color-text-secondary)' }}>
+                                {on ? '✓ ' : ''}{role}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => approve(editingReq.displayName, editingReq.grade, editingReq.roles)} style={{ flex: 1, padding: '9px', background: GR, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>この内容で承認</button>
+                        <button onClick={() => setEditingReq(null)} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         )}
 
@@ -893,6 +1067,58 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   style={{ width: 70, fontSize: 14, fontWeight: 500 }} />
                 <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>% 未満を強調</span>
                 {threshold !== '' && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>（統計タブで確認）</span>}
+              </div>
+            </Card>
+
+            {/* Role manager */}
+            <Card style={{ padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                <i className="ti ti-user-star" style={{ fontSize: 18, color: AC, marginTop: 2 }}></i>
+                <div>
+                  <p style={{ fontWeight: 500, margin: 0 }}>ロール管理</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }}>役職や班などのロールを作ると、メンバー管理・申請画面で割り当てられます</p>
+                </div>
+              </div>
+              {(data.memberRoles || []).length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10 }}>
+                  {(data.memberRoles || []).map((role, i, arr) => {
+                    const count = Object.values(data.memberMeta || {}).filter(mt => (mt.roles || []).includes(role)).length
+                    return (
+                      <div key={role} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <button onClick={() => { if (i === 0) return; const g = [...arr];[g[i - 1], g[i]] = [g[i], g[i - 1]]; update({ ...data, memberRoles: g }) }} disabled={i === 0} style={{ border: 'none', background: 'transparent', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? 'var(--color-border-secondary)' : 'var(--color-text-secondary)', padding: 0, fontSize: 11, lineHeight: 1.2 }}>▲</button>
+                          <button onClick={() => { if (i === arr.length - 1) return; const g = [...arr];[g[i], g[i + 1]] = [g[i + 1], g[i]]; update({ ...data, memberRoles: g }) }} disabled={i === arr.length - 1} style={{ border: 'none', background: 'transparent', cursor: i === arr.length - 1 ? 'default' : 'pointer', color: i === arr.length - 1 ? 'var(--color-border-secondary)' : 'var(--color-text-secondary)', padding: 0, fontSize: 11, lineHeight: 1.2 }}>▼</button>
+                        </div>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12, flex: 1 }}>
+                          {role}
+                          {count > 0 && <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 2 }}>{count}人</span>}
+                          <button onClick={() => {
+                            if (count > 0) { if (!confirm(`ロール「${role}」は${count}人に割り当てられています。削除すると各メンバーからも外れます。よろしいですか？`)) return }
+                            const meta = { ...(data.memberMeta || {}) }
+                            Object.keys(meta).forEach(name => { if (Array.isArray(meta[name]?.roles)) meta[name] = { ...meta[name], roles: meta[name].roles.filter(r => r !== role) } })
+                            update({ ...data, memberRoles: (data.memberRoles || []).filter(r => r !== role), memberMeta: meta })
+                          }} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: ACD, fontSize: 13, padding: 0, lineHeight: 1, marginLeft: 'auto' }}>×</button>
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="text" placeholder="例: 会計 / 1年班 / パートリーダー" value={roleInput} onChange={e => setRoleInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return
+                    const r = roleInput.trim()
+                    if (!r || (data.memberRoles || []).includes(r)) { setRoleInput(''); return }
+                    update({ ...data, memberRoles: [...(data.memberRoles || []), r] })
+                    setRoleInput('')
+                  }} style={{ flex: 1 }} />
+                <PrimaryBtn onClick={() => {
+                  const r = roleInput.trim()
+                  if (!r || (data.memberRoles || []).includes(r)) { setRoleInput(''); return }
+                  update({ ...data, memberRoles: [...(data.memberRoles || []), r] })
+                  setRoleInput('')
+                }} style={{ padding: '0 16px' }}>追加</PrimaryBtn>
               </div>
             </Card>
 

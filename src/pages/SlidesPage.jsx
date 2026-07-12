@@ -102,6 +102,25 @@ const CSS = `
 .pnote { font-size:12px; color:var(--muted); margin-top:16px; text-align:center; }
 .slide.dark .pnote { color:rgba(255,255,255,.6); }
 
+/* Lunar slides */
+.lun-catch { font-size:clamp(15px,2.4vw,22px); color:var(--mint); font-weight:700; margin:6px 0 14px; }
+.lun-who { font-size:clamp(13px,1.8vw,15px); color:rgba(255,255,255,.7); font-weight:700; margin:0 0 20px; }
+.lun-poetry { font-size:clamp(15px,2.3vw,22px); line-height:1.8; max-width:32ch; color:#fff; font-weight:500; }
+.lun-poetry em { font-style:normal; color:var(--mint); }
+.lun-mvv { display:grid; grid-template-columns:1fr; gap:12px; margin-top:8px; }
+@media (min-width:720px){ .lun-mvv { grid-template-columns:repeat(3,1fr); } }
+.lun-mvv .m { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:18px; }
+.lun-mvv .m .k { font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--mint); margin-bottom:8px; }
+.lun-mvv .m .v { font-size:13px; line-height:1.65; color:rgba(255,255,255,.9); }
+.lun-prod { margin-top:20px; padding-top:18px; border-top:1px solid rgba(255,255,255,.16); display:grid; grid-template-columns:1fr; gap:14px; }
+@media (min-width:640px){ .lun-prod { grid-template-columns:1fr 1fr; } }
+.lun-prod .now { font-size:15px; font-weight:800; margin:0; }
+.lun-prod .now span { font-weight:600; color:rgba(255,255,255,.7); font-size:12px; display:block; margin-top:4px; }
+.lun-prod .soon { font-size:13px; color:rgba(255,255,255,.82); line-height:1.65; margin:0; }
+.lun-prod .soon b { color:#fff; }
+.lun-mail { margin-top:18px; font-size:13px; color:rgba(255,255,255,.7); }
+.lun-mail a { color:var(--mint); font-weight:700; }
+
 /* final cta */
 .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-weight:800; text-decoration:none; border:none; cursor:pointer; border-radius:999px; font-family:inherit; transition:transform .16s ease, box-shadow .16s ease; }
 .btn-pri { background:#fff; color:var(--pg-d); padding:15px 34px; font-size:16px; box-shadow:0 8px 30px rgba(0,0,0,.28); }
@@ -315,7 +334,40 @@ const slides = [
       <p className="pnote">※ 出欠管理の基本機能は、これからも無料で使い続けられるようにする予定です</p>
     </div>
   )},
-  // 10 最終CTA → LP
+  // 10 Lunar — コンセプト
+  { chapter: 'Lunar', cls: 'dark', bg: '#004D40', render: () => (
+    <div className="wrap">
+      <div style={{ fontSize:32, marginBottom:12 }}>🌙</div>
+      <div className="s-eyebrow">Creative Team</div>
+      <h2 className="s-h2" style={{ marginBottom:2 }}>Lunar</h2>
+      <p className="lun-catch">— 新しいスタンダードを手のなかに —</p>
+      <p className="lun-who">ICU生によって創設されたクリエイティブチーム</p>
+      <p className="lun-poetry">月が太陽の光を反射して地球を照らすように、テクノロジーを使い、アイデアをプロダクトに昇華し、ICU生に <em>"ワクワク"</em> を届ける。</p>
+    </div>
+  )},
+  // 11 Lunar — MVV・プロダクト
+  { chapter: 'Lunar', cls: 'dark', bg: '#14202B', render: () => (
+    <div className="wrap">
+      <div className="s-eyebrow">わたしたちが目指すもの</div>
+      <div className="lun-mvv">
+        <div className="m"><div className="k">Mission</div><div className="v">ICUをアカデメイアする。真の批判的思考で、新しいシステムを。</div></div>
+        <div className="m"><div className="k">Vision</div><div className="v">ICUを、効率化されたクリエイティブな環境にする。</div></div>
+        <div className="m"><div className="k">Values</div><div className="v">イノベイティブであれ／環境を最適化する／前提を疑う／自分たちが使いたいものを／遊び心を忘れない</div></div>
+      </div>
+      <div className="lun-prod">
+        <div>
+          <div className="s-eyebrow" style={{ marginBottom:8 }}>Product</div>
+          <p className="now">イベント調整アプリ「あてんど」<span>= いま見ているこのアプリ</span></p>
+        </div>
+        <div>
+          <div className="s-eyebrow" style={{ marginBottom:8 }}>構想中</div>
+          <p className="soon"><b>履修サポート ／ 飲食店マップ ／ インターンマッチング…</b><br />ICU・三鷹武蔵境エリアの学生生活を、まるごと便利に。</p>
+        </div>
+      </div>
+      <p className="lun-mail">お問い合わせ: <a href="mailto:nalufurumi@gmail.com">nalufurumi@gmail.com</a></p>
+    </div>
+  )},
+  // 12 最終CTA → LP
   { chapter: 'はじめる', cls: 'dark', bg: '#004D40', final: true, render: (go) => (
     <div className="wrap center">
       <div className="s-eyebrow">まず、触ってみてください</div>

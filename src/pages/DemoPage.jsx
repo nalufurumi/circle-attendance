@@ -288,6 +288,7 @@ export default function DemoPage() {
                     return { ...p, responses }
                   }),
                 }))
+                return Promise.resolve(true)
               }} />
               <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:6 }}>
                 <button onClick={()=>setEvOrder(o=>o==='desc'?'asc':'desc')} style={{ fontSize:12, color:'var(--color-text-secondary)', border:'0.5px solid var(--color-border-tertiary)', background:'transparent', borderRadius:999, padding:'3px 10px', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>

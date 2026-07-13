@@ -191,7 +191,7 @@ export default function MemberPage() {
       }),
     }
     setData(nd)
-    try { await saveData(scriptUrl, nd) } catch {}
+    try { await saveData(scriptUrl, nd); return true } catch { return false }
   }
 
   // Use globalTags order first, then append any event tags not in globalTags

@@ -4,9 +4,11 @@ import { POLL_ORDER, POLL_STATUS, tallyPollCandidate } from '../lib/constants.js
 
 // メンバー画面で「回答受付中の日程調整」に○/△/✕+コメントで回答するためのパネル。
 // selMember が選ばれている前提で、onRespond(pollId, candidateId, status, comment) を親から渡してもらう。
+// onRespond は保存成功/失敗を示す真偽値を返す想定(Promise可)。
 export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
   const [drafts, setDrafts] = useState({}) // { `${pollId}_${candId}`: comment }
   const [expanded, setExpanded] = useState(new Set()) // `${pollId}_${candId}` を展開中かどうか
+  const [saveState, setSaveState] = useState({}) // { [pollId]: 'idle'|'saving'|'saved'|'error' }
 
   const openPolls = (polls || []).filter(p => p.status === 'open')
   if (openPolls.length === 0) return null
@@ -18,6 +20,29 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
   }
 
   const toggle = (key) => setExpanded(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
+
+  // その日程調整カード内で選択済みの全候補を、いま入力中のコメントを含めてまとめて保存する
+  const saveAll = async (poll) => {
+    const targets = poll.candidates.filter(c => {
+      const r = poll.responses?.[selMember]?.[c.id]
+      return r?.status // ○/△/✕のいずれかが選ばれている候補だけ保存対象
+    })
+    if (targets.length === 0) return
+    setSaveState(s => ({ ...s, [poll.id]: 'saving' }))
+    try {
+      const results = await Promise.all(targets.map(c => {
+        const key = `${poll.id}_${c.id}`
+        const r = poll.responses?.[selMember]?.[c.id] || {}
+        const comment = drafts[key] ?? r.comment ?? ''
+        return onRespond(poll.id, c.id, r.status, comment)
+      }))
+      const ok = results.every(r => r !== false)
+      setSaveState(s => ({ ...s, [poll.id]: ok ? 'saved' : 'error' }))
+      if (ok) setTimeout(() => setSaveState(s => ({ ...s, [poll.id]: 'idle' })), 2500)
+    } catch {
+      setSaveState(s => ({ ...s, [poll.id]: 'error' }))
+    }
+  }
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -46,7 +71,7 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
                       const s = POLL_STATUS[st]
                       const active = cur === st
                       return (
-                        <button key={st} onClick={() => onRespond(poll.id, cand.id, st, comment)}
+                        <button key={st} onClick={() => { onRespond(poll.id, cand.id, st, comment); setSaveState(s => ({ ...s, [poll.id]: 'idle' })) }}
                           style={{ flex: 1, padding: '8px 0', borderRadius: 'var(--border-radius-md)', border: `1.5px solid ${active ? s.border : 'var(--color-border-tertiary)'}`, background: active ? s.bg : 'transparent', color: active ? s.text : 'var(--color-text-secondary)', cursor: 'pointer', fontWeight: 500, fontSize: 14 }}>
                           {s.icon} {s.label}
                         </button>
@@ -90,6 +115,31 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
                 </div>
               )
             })}
+
+            {/* 保存ボタン: 未保存のコメントも含めてまとめて確定保存し、結果を明示する */}
+            {poll.candidates.some(c => poll.responses?.[selMember]?.[c.id]?.status) && (
+              <div style={{ marginTop: 4 }}>
+                <button
+                  onClick={() => saveAll(poll)}
+                  disabled={saveState[poll.id] === 'saving'}
+                  style={{
+                    width: '100%', padding: '10px 0', borderRadius: 'var(--border-radius-md)', border: 'none',
+                    fontWeight: 600, fontSize: 14, cursor: saveState[poll.id] === 'saving' ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    background: saveState[poll.id] === 'saved' ? 'var(--color-background-success)'
+                      : saveState[poll.id] === 'error' ? 'var(--color-background-danger)'
+                      : 'var(--accent)',
+                    color: saveState[poll.id] === 'saved' ? 'var(--color-text-success)'
+                      : saveState[poll.id] === 'error' ? 'var(--color-text-danger)'
+                      : '#fff',
+                  }}>
+                  {saveState[poll.id] === 'saving' && <>保存中…</>}
+                  {saveState[poll.id] === 'saved' && <><i className="ti ti-check" style={{ fontSize: 15 }}></i>保存しました</>}
+                  {saveState[poll.id] === 'error' && <><i className="ti ti-alert-circle" style={{ fontSize: 15 }}></i>保存に失敗しました。もう一度お試しください</>}
+                  {(!saveState[poll.id] || saveState[poll.id] === 'idle') && <>回答を保存する</>}
+                </button>
+              </div>
+            )}
           </Card>
         )
       })}

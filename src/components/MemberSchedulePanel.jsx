@@ -1,12 +1,17 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Card } from './ui.jsx'
 import { POLL_ORDER, POLL_STATUS, tallyPollCandidate } from '../lib/constants.js'
+
+// 押し忘れ対策: 最後の変更から この時間 操作がなければ自動保存する（デバウンス方式）
+const AUTOSAVE_DELAY_MS = 5 * 60 * 1000 // 5分
 
 // メンバー画面で「回答受付中の日程調整」に○/△/✕+コメントで回答するためのパネル。
 //
 // 設計方針: ○/△/✕やコメントの入力は「下書き」で、実際にサーバー(スプレッドシート)へ
 // 保存されるのは「保存する」ボタンを押した瞬間だけ。タップの度に自動保存はしない。
 // これにより「押した＝確定した」がはっきりし、保存できたか不安になることを防ぐ。
+// ただし押し忘れのリスクに備え、最後の変更から5分間そのままなら裏側で自動保存する
+// （表示は「保存しました」ではなく「自動保存されました」にして、手動確定との違いを残す）。
 //
 // selMember が選ばれている前提で、onRespond(pollId, candidateId, status, comment) を親から渡してもらう。
 // onRespond は保存成功/失敗を示す真偽値を返す想定(Promise可)。
@@ -15,11 +20,18 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
   // 初期値はサーバーに保存済みの回答から作る。保存ボタンを押すまではここだけが変化する。
   const [draft, setDraft] = useState({})
   const [dirty, setDirty] = useState({})     // { [pollId]: boolean } 未保存の変更があるか
-  const [saveState, setSaveState] = useState({}) // { [pollId]: 'idle'|'saving'|'saved'|'error' }
+  const [saveState, setSaveState] = useState({}) // { [pollId]: 'idle'|'saving'|'saved'|'autosaved'|'error' }
   const [expanded, setExpanded] = useState(new Set())
+  const timers = useRef({}) // { [pollId]: timeoutId } 自動保存タイマー
+  // 自動保存タイマーのコールバックは古いレンダー時点のクロージャを持つため、
+  // 常に最新の下書きを参照できるよう ref にも同期しておく（クロージャの陳腐化対策）
+  const draftRef = useRef({})
+  useEffect(() => { draftRef.current = draft }, [draft])
+
+  // アンマウント時はタイマーを掃除しておく
+  useEffect(() => () => { Object.values(timers.current).forEach(clearTimeout) }, [])
 
   const openPolls = (polls || []).filter(p => p.status === 'open')
-  if (openPolls.length === 0) return null
 
   const fmtDate = (d) => {
     if (!d) return ''
@@ -29,43 +41,33 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
 
   const toggle = (key) => setExpanded(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
 
-  // 候補1件の現在値(下書きがあればそれ、なければサーバー保存済みの値)を取得
-  const getVal = (poll, candId) => {
-    const d = draft[poll.id]?.[candId]
+  // 候補1件の現在値を、指定した下書きオブジェクトから取得（レンダー用/タイマー用で共通利用）
+  const getValFrom = (draftObj, poll, candId) => {
+    const d = draftObj[poll.id]?.[candId]
     if (d) return d
     const saved = poll.responses?.[selMember]?.[candId]
     return { status: saved?.status ?? null, comment: saved?.comment ?? '' }
   }
+  // レンダー中はその時点のstateを使う
+  const getVal = (poll, candId) => getValFrom(draft, poll, candId)
 
-  const setStatus = (poll, candId, status) => {
-    const cur = getVal(poll, candId)
-    setDraft(d => ({ ...d, [poll.id]: { ...(d[poll.id] || {}), [candId]: { ...cur, status } } }))
-    setDirty(d => ({ ...d, [poll.id]: true }))
-    setSaveState(s => ({ ...s, [poll.id]: 'idle' }))
-  }
-
-  const setComment = (poll, candId, comment) => {
-    const cur = getVal(poll, candId)
-    setDraft(d => ({ ...d, [poll.id]: { ...(d[poll.id] || {}), [candId]: { ...cur, comment } } }))
-    setDirty(d => ({ ...d, [poll.id]: true }))
-    setSaveState(s => ({ ...s, [poll.id]: 'idle' }))
-  }
-
-  // 「保存する」ボタン: 下書きにある回答をまとめて確定保存する
-  const saveAll = async (poll) => {
-    const pollDraft = draft[poll.id] || {}
+  // 実際の保存処理。isAuto=true のときは「自動保存されました」表示にする
+  const commit = async (poll, isAuto) => {
+    const currentDraft = draftRef.current // タイマー経由でも必ず最新の下書きを読む
     const targets = poll.candidates
-      .map(c => ({ c, v: getVal(poll, c.id) }))
-      .filter(({ v }) => v.status) // ○/△/✕のいずれかが選ばれている候補だけ保存対象
+      .map(c => ({ c, v: getValFrom(currentDraft, poll, c.id) }))
+      .filter(({ v }) => v.status)
     if (targets.length === 0) return
     setSaveState(s => ({ ...s, [poll.id]: 'saving' }))
     try {
       const results = await Promise.all(targets.map(({ c, v }) => onRespond(poll.id, c.id, v.status, v.comment)))
       const ok = results.every(r => r !== false)
       if (ok) {
-        setSaveState(s => ({ ...s, [poll.id]: 'saved' }))
+        setSaveState(s => ({ ...s, [poll.id]: isAuto ? 'autosaved' : 'saved' }))
         setDirty(d => ({ ...d, [poll.id]: false }))
-        setTimeout(() => setSaveState(s => ({ ...s, [poll.id]: 'idle' })), 2500)
+        clearTimeout(timers.current[poll.id])
+        delete timers.current[poll.id]
+        setTimeout(() => setSaveState(s => ({ ...s, [poll.id]: 'idle' })), isAuto ? 4000 : 2500)
       } else {
         setSaveState(s => ({ ...s, [poll.id]: 'error' }))
       }
@@ -73,6 +75,33 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
       setSaveState(s => ({ ...s, [poll.id]: 'error' }))
     }
   }
+
+  // 変更があるたびに呼ぶ: 「未保存」にしつつ、5分間操作がなければ自動保存するタイマーを仕掛け直す
+  const scheduleAutosave = (poll) => {
+    clearTimeout(timers.current[poll.id])
+    timers.current[poll.id] = setTimeout(() => commit(poll, true), AUTOSAVE_DELAY_MS)
+  }
+
+  const setStatus = (poll, candId, status) => {
+    const cur = getVal(poll, candId)
+    setDraft(d => ({ ...d, [poll.id]: { ...(d[poll.id] || {}), [candId]: { ...cur, status } } }))
+    setDirty(d => ({ ...d, [poll.id]: true }))
+    setSaveState(s => ({ ...s, [poll.id]: 'idle' }))
+    scheduleAutosave(poll)
+  }
+
+  const setComment = (poll, candId, comment) => {
+    const cur = getVal(poll, candId)
+    setDraft(d => ({ ...d, [poll.id]: { ...(d[poll.id] || {}), [candId]: { ...cur, comment } } }))
+    setDirty(d => ({ ...d, [poll.id]: true }))
+    setSaveState(s => ({ ...s, [poll.id]: 'idle' }))
+    scheduleAutosave(poll)
+  }
+
+  // 「保存する」ボタン: 下書きにある回答をまとめて確定保存する
+  const saveAll = (poll) => commit(poll, false)
+
+  if (openPolls.length === 0) return null
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -161,22 +190,25 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
                     fontWeight: 600, fontSize: 14,
                     cursor: (saveState[poll.id] === 'saving' || (!isDirty && saveState[poll.id] !== 'error')) ? 'default' : 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    opacity: (!isDirty && saveState[poll.id] !== 'saved' && saveState[poll.id] !== 'error') ? 0.5 : 1,
+                    opacity: (!isDirty && !['saved', 'autosaved', 'error'].includes(saveState[poll.id])) ? 0.5 : 1,
                     background: saveState[poll.id] === 'saved' ? 'var(--color-background-success)'
+                      : saveState[poll.id] === 'autosaved' ? 'var(--color-background-success)'
                       : saveState[poll.id] === 'error' ? 'var(--color-background-danger)'
                       : 'var(--accent)',
                     color: saveState[poll.id] === 'saved' ? 'var(--color-text-success)'
+                      : saveState[poll.id] === 'autosaved' ? 'var(--color-text-success)'
                       : saveState[poll.id] === 'error' ? 'var(--color-text-danger)'
                       : '#fff',
                   }}>
                   {saveState[poll.id] === 'saving' && <>保存中…</>}
                   {saveState[poll.id] === 'saved' && <><i className="ti ti-check" style={{ fontSize: 15 }}></i>保存しました</>}
+                  {saveState[poll.id] === 'autosaved' && <><i className="ti ti-clock-check" style={{ fontSize: 15 }}></i>自動保存されました</>}
                   {saveState[poll.id] === 'error' && <><i className="ti ti-alert-circle" style={{ fontSize: 15 }}></i>保存に失敗しました。もう一度お試しください</>}
                   {(!saveState[poll.id] || saveState[poll.id] === 'idle') && (isDirty ? <>この内容で保存する</> : <>保存済み</>)}
                 </button>
                 {isDirty && (!saveState[poll.id] || saveState[poll.id] === 'idle') && (
                   <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center', margin: '6px 0 0' }}>
-                    「保存する」を押すまで回答は確定されません
+                    「保存する」を押すまで回答は確定されません（5分操作がないと自動で保存されます）
                   </p>
                 )}
               </div>

@@ -143,10 +143,11 @@ export default function MemberPage() {
   }, [scriptUrl])
 
   const updateAtt = (evId, member, field, value) => {
-    const ev = data.events.find(e=>e.id===evId); if (!ev) return
+    const base = latestData.current || data
+    const ev = base.events.find(e=>e.id===evId); if (!ev) return
     const oldAtt = ev.attendance?.[member] || { plan:null, actual:null, reason:null }
     const newAtt = { ...oldAtt, [field]: value }
-    const nd = { ...data, events: data.events.map(e=>e.id!==evId?e:{...e,attendance:{...e.attendance,[member]:newAtt}}) }
+    const nd = { ...base, events: base.events.map(e=>e.id!==evId?e:{...e,attendance:{...e.attendance,[member]:newAtt}}) }
     setData(nd)
     latestData.current = nd
 
@@ -172,16 +173,22 @@ export default function MemberPage() {
   }
 
   const saveReason = async (evId, member, reason) => {
-    const ev = data.events.find(e=>e.id===evId); if(!ev) return
+    const base = latestData.current || data
+    const ev = base.events.find(e=>e.id===evId); if(!ev) return
     const oldAtt = ev.attendance?.[member]||{plan:null,actual:null,reason:null}
-    const nd = { ...data, events:data.events.map(e=>e.id!==evId?e:{...e,attendance:{...e.attendance,[member]:{...oldAtt,reason:reason||null}}}) }
-    setData(nd); try { await saveData(scriptUrl, nd) } catch {}
+    const nd = { ...base, events:base.events.map(e=>e.id!==evId?e:{...e,attendance:{...e.attendance,[member]:{...oldAtt,reason:reason||null}}}) }
+    setData(nd)
+    latestData.current = nd
+    try { await saveData(scriptUrl, nd) } catch {}
   }
 
   const respondToPoll = async (pollId, candidateId, status, comment) => {
+    // latestData(直近の確定状態)を基準にすることで、1回の保存操作で複数候補を
+    // ほぼ同時に更新しても、後勝ちで他候補の回答が消えないようにする。
+    const base = latestData.current || data
     const nd = {
-      ...data,
-      schedulePolls: (data.schedulePolls || []).map(p => {
+      ...base,
+      schedulePolls: (base.schedulePolls || []).map(p => {
         if (p.id !== pollId) return p
         const responses = { ...(p.responses || {}) }
         const memberResp = { ...(responses[selMember] || {}) }
@@ -191,6 +198,7 @@ export default function MemberPage() {
       }),
     }
     setData(nd)
+    latestData.current = nd
     try { await saveData(scriptUrl, nd); return true } catch { return false }
   }
 

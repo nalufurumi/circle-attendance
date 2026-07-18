@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Card } from './ui.jsx'
+import CalendarPicker from './CalendarPicker.jsx'
 import { POLL_STATUS, tallyPollCandidate, pollResponsesToAttendance } from '../lib/constants.js'
 
 // 管理者画面の「日程調整」タブの中身。
@@ -8,7 +9,11 @@ import { POLL_STATUS, tallyPollCandidate, pollResponsesToAttendance } from '../l
 export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, AC, ACB, ACD, onEventCreated }) {
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
-  const [candidates, setCandidates] = useState([{ date: '', timeStart: '', timeEnd: '' }])
+  const [inputMode, setInputMode] = useState('calendar') // 'calendar' | 'manual'
+  const [pickedDates, setPickedDates] = useState([])     // カレンダーで選んだ日付(YYYY-MM-DD)
+  const [bulkStart, setBulkStart] = useState('')         // 全候補に一括で入れる開始時刻
+  const [bulkEnd, setBulkEnd] = useState('')             // 同・終了時刻
+  const [candidates, setCandidates] = useState([{ date: '', timeStart: '', timeEnd: '' }]) // 手入力モード用
   const [requireAll, setRequireAll] = useState(false)
   const [expandedPoll, setExpandedPoll] = useState(null)
   const [confirmingPick, setConfirmingPick] = useState(null) // { poll, candidateId, cand }
@@ -24,10 +29,27 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
   const removeCandidateRow = (i) => setCandidates(c => c.filter((_, idx) => idx !== i))
   const updateCandidateRow = (i, field, val) => setCandidates(c => c.map((row, idx) => idx === i ? { ...row, [field]: val } : row))
 
+  // フォーム入力を全部クリアする(作成後・キャンセル時に使う)
+  const resetForm = () => {
+    setTitle(''); setPickedDates([]); setBulkStart(''); setBulkEnd('')
+    setCandidates([{ date: '', timeStart: '', timeEnd: '' }])
+    setRequireAll(false); setFormError('')
+  }
+
   const createPoll = () => {
-    const validCandidates = candidates.filter(c => c.date)
+    // 選択中のモードに応じて候補日リストを組み立てる。
+    // カレンダーモードでは一括指定の時刻を全候補に適用する。
+    const validCandidates = inputMode === 'calendar'
+      ? pickedDates.map(d => ({ date: d, timeStart: bulkStart, timeEnd: bulkEnd }))
+      : candidates.filter(c => c.date)
+
     if (!title.trim()) { setFormError('「タイトル」が空欄です'); return }
-    if (validCandidates.length === 0) { setFormError('候補日が1件も入力されていません（日付を選んでください）'); return }
+    if (validCandidates.length === 0) {
+      setFormError(inputMode === 'calendar'
+        ? '候補日が選ばれていません（カレンダーの日付をタップしてください）'
+        : '候補日が1件も入力されていません（日付を選んでください）')
+      return
+    }
     setFormError('')
     const poll = {
       id: `sp${Date.now()}`,
@@ -41,7 +63,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
       createdAt: new Date().toISOString(),
     }
     onUpdate({ ...data, schedulePolls: [poll, ...polls] }, mkLog?.({ by: adminLabel, type: 'admin', member: '', before: '', after: `日程調整作成: ${poll.title}` }))
-    setTitle(''); setCandidates([{ date: '', timeStart: '', timeEnd: '' }]); setRequireAll(false); setShowForm(false)
+    resetForm(); setShowForm(false)
   }
 
   const deletePoll = (pollId) => {
@@ -81,6 +103,13 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
     return `${d}（${['日', '月', '火', '水', '木', '金', '土'][dt.getDay()]}）`
   }
 
+  // チップ表示用の短い形式(7/20(月))。狭い画面でも並べやすいように短くする
+  const fmtShort = (d) => {
+    if (!d) return ''
+    const dt = new Date(d + 'T00:00:00')
+    return `${dt.getMonth() + 1}/${dt.getDate()}(${['日', '月', '火', '水', '木', '金', '土'][dt.getDay()]})`
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -98,21 +127,78 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
             <input type="text" placeholder="例：7月の練習日程を決めよう" value={title} onChange={e => setTitle(e.target.value)} />
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>候補日</p>
-          {candidates.map((c, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-              <input type="date" value={c.date} onChange={e => updateCandidateRow(i, 'date', e.target.value)} style={{ flex: 2 }} />
-              <input type="time" value={c.timeStart} onChange={e => updateCandidateRow(i, 'timeStart', e.target.value)} style={{ flex: 1 }} />
-              <input type="time" value={c.timeEnd} onChange={e => updateCandidateRow(i, 'timeEnd', e.target.value)} style={{ flex: 1 }} />
-              {candidates.length > 1 && (
-                <button onClick={() => removeCandidateRow(i)} style={{ border: 'none', background: 'transparent', color: 'var(--color-text-danger)', cursor: 'pointer', padding: 4, flexShrink: 0 }}>
-                  <i className="ti ti-x" style={{ fontSize: 14 }}></i>
-                </button>
-              )}
-            </div>
-          ))}
-          <button onClick={addCandidateRow} style={{ fontSize: 12, color: AC, border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 0', marginBottom: 10 }}>
-            + 候補日を追加
-          </button>
+
+          {/* 入力方法の切替。テクノロジーに詳しくない人がまず触るのはカレンダーなので既定はこちら。
+              時間を1件ずつ変えたい等の細かい調整をしたい人向けに手入力も残す。 */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {[['calendar', 'カレンダーから選ぶ'], ['manual', '手入力']].map(([mode, label]) => (
+              <button key={mode} type="button" onClick={() => setInputMode(mode)}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${inputMode === mode ? AC : 'var(--color-border-tertiary)'}`,
+                  background: inputMode === mode ? ACB : 'transparent',
+                  color: inputMode === mode ? ACD : 'var(--color-text-secondary)' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {inputMode === 'calendar' ? (
+            <>
+              <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                日付をタップすると候補に入ります（もう一度タップで取り消し）
+              </p>
+              <CalendarPicker value={pickedDates} onChange={setPickedDates} AC={AC} ACB={ACB} ACD={ACD} />
+
+              {/* 選んだ日を一覧で見せる。カレンダーだけだと別の月に移った時に
+                  「何を選んだか」が見えなくなるため、必ず手元に残す。 */}
+              <div style={{ marginTop: 10, marginBottom: 10 }}>
+                <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                  選んだ日{pickedDates.length > 0 && `（${pickedDates.length}件）`}
+                </p>
+                {pickedDates.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>まだ選ばれていません</p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {pickedDates.map(d => (
+                      <span key={d} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', background: ACB, color: ACD, borderRadius: 999, fontSize: 12, fontWeight: 600 }}>
+                        {fmtShort(d)}
+                        <button type="button" onClick={() => setPickedDates(ds => ds.filter(x => x !== d))} aria-label={`${fmtShort(d)}を取り消す`}
+                          style={{ border: 'none', background: 'transparent', color: ACD, cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 時間は1回設定すれば全候補に入る。毎回入力させると面倒で離脱するため。 */}
+              <div style={{ marginBottom: 10 }}>
+                <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>時間（任意・選んだ日すべてに入ります）</p>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="time" value={bulkStart} onChange={e => setBulkStart(e.target.value)} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>〜</span>
+                  <input type="time" value={bulkEnd} onChange={e => setBulkEnd(e.target.value)} style={{ flex: 1 }} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {candidates.map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                  <input type="date" value={c.date} onChange={e => updateCandidateRow(i, 'date', e.target.value)} style={{ flex: 2 }} />
+                  <input type="time" value={c.timeStart} onChange={e => updateCandidateRow(i, 'timeStart', e.target.value)} style={{ flex: 1 }} />
+                  <input type="time" value={c.timeEnd} onChange={e => updateCandidateRow(i, 'timeEnd', e.target.value)} style={{ flex: 1 }} />
+                  {candidates.length > 1 && (
+                    <button onClick={() => removeCandidateRow(i)} style={{ border: 'none', background: 'transparent', color: 'var(--color-text-danger)', cursor: 'pointer', padding: 4, flexShrink: 0 }}>
+                      <i className="ti ti-x" style={{ fontSize: 14 }}></i>
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button onClick={addCandidateRow} style={{ fontSize: 12, color: AC, border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 0', marginBottom: 10 }}>
+                + 候補日を追加
+              </button>
+            </>
+          )}
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, cursor: 'pointer' }}>
             <input type="checkbox" checked={requireAll} onChange={e => setRequireAll(e.target.checked)} style={{ width: 16, height: 16 }} />
@@ -121,7 +207,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={createPoll} style={{ flex: 1, padding: '9px', background: AC, border: 'none', borderRadius: 'var(--border-radius-md)', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>作成する</button>
-            <button onClick={() => { setShowForm(false); setFormError('') }} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
+            <button onClick={() => { setShowForm(false); resetForm() }} style={{ padding: '9px 16px', background: 'transparent', border: '0.5px solid var(--color-border-secondary)', borderRadius: 'var(--border-radius-md)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>キャンセル</button>
           </div>
           {formError && (
             <p style={{ fontSize: 12, color: 'var(--color-text-danger)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>

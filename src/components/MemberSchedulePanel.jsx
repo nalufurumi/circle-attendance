@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Card } from './ui.jsx'
-import { POLL_ORDER, POLL_STATUS, tallyPollCandidate } from '../lib/constants.js'
+import { POLL_ORDER, POLL_STATUS, tallyPollCandidate, pollDeadlineStatus } from '../lib/constants.js'
 
 // 押し忘れ対策: 最後の変更から この時間 操作がなければ自動保存する（デバウンス方式）
 const AUTOSAVE_DELAY_MS = 5 * 60 * 1000 // 5分
@@ -114,10 +114,21 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
         const hasAnyStatus = poll.candidates.some(c => getVal(poll, c.id).status)
         return (
           <Card key={poll.id} style={{ padding: 14, marginBottom: 10, border: responded && !isDirty ? undefined : '1.5px solid var(--accent)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2, gap: 6 }}>
               <p style={{ fontWeight: 500, margin: 0 }}>{poll.title}</p>
               {isDirty && <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-warning)', background: 'var(--color-background-warning)', padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>未保存</span>}
             </div>
+            {(() => {
+              const ds = pollDeadlineStatus(poll.deadline)
+              if (!ds) return null
+              const col = ds.level === 'over' ? 'var(--color-text-danger)' : ds.level === 'urgent' ? 'var(--color-text-warning)' : 'var(--color-text-secondary)'
+              const bg = ds.level === 'over' ? 'var(--color-background-danger)' : ds.level === 'urgent' ? 'var(--color-background-warning)' : 'var(--color-background-secondary)'
+              return (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: bg, color: col, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
+                  <i className="ti ti-clock-hour-4" style={{ fontSize: 13 }}></i>{ds.label}
+                </div>
+              )
+            })()}
             {poll.requireAll && <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>※ 全候補への回答をお願いします</p>}
             {poll.memo?.trim() && (
               <div style={{ display: 'flex', gap: 6, background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-sm)', padding: '6px 10px', margin: '8px 0', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>

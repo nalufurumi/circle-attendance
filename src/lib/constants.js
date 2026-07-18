@@ -88,6 +88,22 @@ export const POLL_STATUS = {
 export const POLL_TO_PLAN = { yes: 'attending', maybe: 'undecided', no: 'absent', null: null }
 
 /** 日程調整の候補1件について、○/△/✕ の集計を返す */
+/**
+ * 回答締切の状態を返す。管理者・メンバー双方で同じ見え方にするため共通化する。
+ * 締切を過ぎても回答自体はブロックしない(締切後に来た人を締め出すと運営が困るため)。
+ * 表示だけを強くして、自然に回答が集まるようにする狙い。
+ */
+export function pollDeadlineStatus(deadline, now = new Date()) {
+  if (!deadline) return null
+  const d = new Date(deadline + 'T00:00:00')
+  const t = new Date(now); t.setHours(0, 0, 0, 0)
+  const days = Math.round((d - t) / 86400000)
+  if (days < 0)  return { days, level: 'over',   label: '締切を過ぎています' }
+  if (days === 0) return { days, level: 'urgent', label: '今日が締切です' }
+  if (days <= 2)  return { days, level: 'urgent', label: `締切まであと${days}日` }
+  return { days, level: 'normal', label: `締切まであと${days}日` }
+}
+
 export function tallyPollCandidate(poll, candidateId) {
   const tally = { yes: 0, maybe: 0, no: 0, null: 0 }
   Object.values(poll.responses || {}).forEach(byCandidate => {

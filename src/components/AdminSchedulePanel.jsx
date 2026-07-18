@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Card } from './ui.jsx'
 import CandidateDatePicker from './CandidateDatePicker.jsx'
-import { POLL_STATUS, tallyPollCandidate, pollResponsesToAttendance } from '../lib/constants.js'
+import { POLL_STATUS, tallyPollCandidate, pollResponsesToAttendance, pollDeadlineStatus } from '../lib/constants.js'
 
 // 管理者画面の「日程調整」タブの中身。
 // data/onUpdate/adminLabel/mkLog/AC系カラーを親ページから受け取る汎用コンポーネント。
@@ -10,6 +10,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
   const [memo, setMemo] = useState('')                   // メンバーに伝えたい補足(任意)
+  const [deadline, setDeadline] = useState('')           // 回答の締切(任意)
   const [inputMode, setInputMode] = useState('calendar') // 'calendar' | 'manual'
   // カレンダー側の入力状態はCandidateDatePickerが持つ。ここには組み上がった候補リストだけ受け取る
   const [calendarCandidates, setCalendarCandidates] = useState([]) // [{date,timeStart,timeEnd}]
@@ -33,7 +34,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
 
   // フォーム入力を全部クリアする(作成後・キャンセル時に使う)
   const resetForm = () => {
-    setTitle(''); setMemo(''); setCalendarCandidates([]); setDupTimes({ start: '', end: '' }); setPickerKey(k => k + 1)
+    setTitle(''); setMemo(''); setDeadline(''); setCalendarCandidates([]); setDupTimes({ start: '', end: '' }); setPickerKey(k => k + 1)
     setCandidates([{ date: '', timeStart: '', timeEnd: '' }])
     setRequireAll(false); setFormError('')
   }
@@ -56,6 +57,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
       id: `sp${Date.now()}`,
       title: title.trim(),
       memo: memo.trim(),
+      deadline,
       candidates: validCandidates.map((c, i) => ({ id: `c${Date.now()}_${i}`, date: c.date, timeStart: c.timeStart, timeEnd: c.timeEnd })),
       requireAll,
       status: 'open',
@@ -78,6 +80,8 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
   const duplicatePoll = (poll) => {
     setTitle(poll.title)
     setMemo(poll.memo || '')
+    setDeadline('')  // 締切は日付そのものなので引き継がず、都度決めてもらう
+    setDeadline('')  // 締切は日付なので引き継がない
     setRequireAll(!!poll.requireAll)
     // 前回の候補で一番よく使われていた時刻を初期値として引き継ぐ
     const first = poll.candidates?.[0]
@@ -142,6 +146,10 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
             <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>メモ（任意・メンバーの回答画面に表示されます）</p>
             <textarea placeholder="例：2泊3日の合宿です。バイトがある人は早めに教えてください" value={memo} onChange={e => setMemo(e.target.value)}
               style={{ width: '100%', minHeight: 56, boxSizing: 'border-box', fontSize: 13, resize: 'vertical' }} />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>回答の締切（任意・メンバーの画面に「あと◯日」と表示されます）</p>
+            <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={{ width: '100%' }} />
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>候補日</p>
 
@@ -217,7 +225,16 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
                 <div onClick={() => setExpandedPoll(isOpen ? null : poll.id)} style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <p style={{ fontWeight: 500, margin: 0 }}>{poll.title}</p>
-                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>候補{poll.candidates.length}件 · 回答{respondentCount}人</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>候補{poll.candidates.length}件 · 回答{respondentCount}人</p>
+                      {(() => {
+                        const ds = pollDeadlineStatus(poll.deadline)
+                        if (!ds) return null
+                        const col = ds.level === 'over' ? 'var(--color-text-danger)' : ds.level === 'urgent' ? 'var(--color-text-warning)' : 'var(--color-text-secondary)'
+                        const bg = ds.level === 'over' ? 'var(--color-background-danger)' : ds.level === 'urgent' ? 'var(--color-background-warning)' : 'var(--color-background-secondary)'
+                        return <span style={{ fontSize: 10, fontWeight: 600, color: col, background: bg, padding: '2px 8px', borderRadius: 999 }}>{ds.label}</span>
+                      })()}
+                    </div>
                   </div>
                   <i className={`ti ${isOpen ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 16, color: 'var(--color-text-secondary)' }}></i>
                 </div>

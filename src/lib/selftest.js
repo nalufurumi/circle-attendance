@@ -11,7 +11,7 @@
 // 近似チェックする。完全な描画テストは重いので、ここでは主要ページの
 // コンポーネントを実際に renderToStaticMarkup して例外の有無だけ見る。
 
-import { computeStats, isEditLocked, isEventStarted, DEFAULT_DATA, tallyPollCandidate, pollResponsesToAttendance } from './constants.js'
+import { computeStats, isEditLocked, isEventStarted, DEFAULT_DATA, tallyPollCandidate, pollResponsesToAttendance, pollDeadlineStatus } from './constants.js'
 import { migrate } from './api.js'
 
 // ── 軽量アサーションフレームワーク ──
@@ -226,6 +226,16 @@ export function runLogicTests() {
     eq(att.B, { plan: 'undecided', actual: null, reason: 'バイトかも' }, 'maybe→undecided+コメント')
     eq(att.C, { plan: 'absent',    actual: null, reason: '用事' }, 'no→absent+コメント')
     ok(!('D' in att), '未回答者は変換対象に含まれない')
+  })
+
+  t('締切: 残日数と警告レベルが正しい', () => {
+    const now = new Date(2026, 6, 18)
+    eq(pollDeadlineStatus('2026-07-25', now).days, 7, '7日後')
+    eq(pollDeadlineStatus('2026-07-25', now).level, 'normal', '余裕あり')
+    eq(pollDeadlineStatus('2026-07-20', now).level, 'urgent', '2日前は警告')
+    eq(pollDeadlineStatus('2026-07-18', now).label, '今日が締切です', '当日')
+    eq(pollDeadlineStatus('2026-07-16', now).level, 'over', '過ぎている')
+    eq(pollDeadlineStatus('', now), null, '未設定はnull')
   })
 
   // ── 健全性チェックのロジック ──

@@ -20,7 +20,7 @@ function toYMD(d) {
   return `${y}-${m}-${day}`
 }
 
-export default function CalendarPicker({ value = [], onChange, AC, ACB, ACD }) {
+export default function CalendarPicker({ value = [], onChange, countByDate = {}, AC, ACB, ACD }) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   // 表示中の月(その月の1日を保持する)
@@ -77,6 +77,7 @@ export default function CalendarPicker({ value = [], onChange, AC, ACB, ACD }) {
           const isPast = dateObj < today
           const isToday = ymd === toYMD(today)
           const selected = isSelected(ymd)
+          const count = countByDate[ymd] || 0
           const dow = dateObj.getDay()
           // 平日/土/日で文字色を変える(選択済みは白抜きなので対象外)
           const baseColor = dow === 0 ? '#C2453F' : dow === 6 ? '#2F6FB3' : 'var(--color-text-primary)'
@@ -87,8 +88,9 @@ export default function CalendarPicker({ value = [], onChange, AC, ACB, ACD }) {
               onClick={() => !isPast && toggleDate(day)}
               disabled={isPast}
               aria-pressed={selected}
-              aria-label={`${month + 1}月${day}日${selected ? '（選択中）' : ''}`}
+              aria-label={`${month + 1}月${day}日${selected ? '（選択中）' : ''}${count > 1 ? `・${count}枠` : ''}`}
               style={{
+                position: 'relative',
                 aspectRatio: '1 / 1', minHeight: 38,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 8, fontSize: 14, fontWeight: selected || isToday ? 700 : 500,
@@ -101,6 +103,12 @@ export default function CalendarPicker({ value = [], onChange, AC, ACB, ACD }) {
                 padding: 0,
               }}>
               {day}
+              {/* 同じ日に複数の時間帯がある場合だけ枠数を出す。1枠なら何も出さず情報量を増やさない */}
+              {count > 1 && (
+                <span style={{ position: 'absolute', top: 1, right: 1, minWidth: 14, height: 14, borderRadius: 7, background: '#fff', color: ACD, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', border: `1px solid ${AC}` }}>
+                  {count}
+                </span>
+              )}
             </button>
           )
         })}

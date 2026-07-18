@@ -199,6 +199,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   const [expandedMember, setExpandedMember] = useState(null) // member whose detail panel is open
   const [roleInput, setRoleInput] = useState('') // new role being typed in settings
   const [editingReq, setEditingReq] = useState(null) // { id, displayName, grade, roles } being edited before approval
+  const [showQr, setShowQr] = useState(false)        // 共有URLのQRコードを開いているか
   const [pendingMemberDelete, setPendingMemberDelete] = useState(null)
   const [newTagInput,  setNewTagInput]  = useState('')
   const [evModes,      setEvModes]      = useState({})   // { evId: 'plan' | 'actual' }
@@ -1319,6 +1320,33 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
               <button onClick={() => { navigator.clipboard.writeText(shareUrl); setCopied('url'); setTimeout(() => setCopied(''), 2000) }} style={{ width: '100%', padding: '7px', background: ACB, border: 'none', borderRadius: 'var(--border-radius-md)', color: ACD, cursor: 'pointer', fontWeight: 500, fontSize: 13 }}>
                 {copied === 'url' ? '✓ コピーしました' : 'URLをコピー'}
               </button>
+
+              {/* QRコード: 新歓や部会でその場で見せて登録してもらうための導線。
+                  URLを送る手間すら省けるので、導入時の最初の関門を下げる狙い。 */}
+              <button onClick={() => setShowQr(v => !v)} style={{ width: '100%', marginTop: 8, padding: '7px', background: 'transparent', border: `1px solid ${AC}`, borderRadius: 'var(--border-radius-md)', color: ACD, cursor: 'pointer', fontWeight: 500, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <i className="ti ti-qrcode" style={{ fontSize: 15 }}></i>
+                {showQr ? 'QRコードを閉じる' : 'QRコードを表示（その場で読み取ってもらう）'}
+              </button>
+              {showQr && (
+                <div style={{ marginTop: 12, textAlign: 'center' }}>
+                  <div style={{ background: '#fff', borderRadius: 'var(--border-radius-md)', padding: 14, display: 'inline-block', border: '0.5px solid var(--color-border-tertiary)' }}>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=0&data=${encodeURIComponent(shareUrl)}`}
+                      alt="メンバー用共有URLのQRコード" width={260} height={260} style={{ display: 'block' }} />
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '10px 0 0', lineHeight: 1.6 }}>
+                    このまま画面を見せて、スマホのカメラで読み取ってもらえます
+                  </p>
+                  <a href={`https://api.qrserver.com/v1/create-qr-code/?size=800x800&margin=10&data=${encodeURIComponent(shareUrl)}`}
+                    download={`${(data.circleName || 'あてんど')}_QR.png`} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '7px 16px', background: ACB, borderRadius: 'var(--border-radius-md)', color: ACD, textDecoration: 'none', fontWeight: 500, fontSize: 13 }}>
+                    <i className="ti ti-download" style={{ fontSize: 15 }}></i>画像を保存（ポスター用）
+                  </a>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '10px 0 0', lineHeight: 1.6 }}>
+                    ※ このQRはメンバー用URLそのものです。部外者に配らないでください
+                  </p>
+                </div>
+              )}
             </Card>
 
             {/* Restore URL (cross-device) */}

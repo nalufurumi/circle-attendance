@@ -336,7 +336,10 @@ export default function MemberPage() {
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:4 }}>
                         <div style={{ minWidth:0 }}>
                           <p style={{ fontWeight:500, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ev.name}</p>
-                          <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd?`〜${ev.timeEnd}`:'〜'}` : ''} · {ev.type}</p>
+                          <p style={{ fontSize:12, color:'var(--color-text-secondary)', margin:0 }}>
+                            {ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd?`〜${ev.timeEnd}`:'〜'}` : ''} · {ev.type}
+                            {ev.fee != null && ev.fee > 0 && <span style={{ marginLeft:6, color:ACD, fontWeight:600 }}>💰{ev.fee.toLocaleString()}円</span>}
+                          </p>
                         </div>
                         <span style={{ fontSize:10, padding:'2px 7px', borderRadius:4, flexShrink:0, background: locked ? 'var(--color-background-secondary)' : (isUpcoming?ACB:'var(--color-background-secondary)'), color: locked ? 'var(--color-text-tertiary)' : (isUpcoming?ACD:'var(--color-text-tertiary)'), fontWeight:500 }}>
                           {locked ? '🔒 締切' : (isUpcoming?'事前入力':'当日記録')}

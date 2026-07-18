@@ -170,7 +170,7 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
   // Events tab
   const [showAddEv,  setShowAddEv]  = useState(false)
   const [expandedEv, setExpandedEv] = useState(null)
-  const [newEv,      setNewEv]      = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+  const [newEv,      setNewEv]      = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '', fee: '' })
   // Members tab
   const [showAddMem, setShowAddMem] = useState(false)
   const [newMem,     setNewMem]     = useState('')
@@ -284,22 +284,23 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
         events: data.events.map(e => e.id !== editingEvId ? e : {
           ...e, date: newEv.date, timeStart: newEv.timeStart || '', timeEnd: newEv.timeEnd || '',
           name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags || [], memo: newEv.memo || '',
+          fee: newEv.fee === '' ? null : Number(newEv.fee),
         }).sort((a, b) => b.date.localeCompare(a.date)),
       }
       update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: newEv.date, eventName: newEv.name.trim(), before: 'イベント編集前', after: 'イベント編集' }))
       setExpandedEv(editingEvId)
     } else {
-      const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart || '', timeEnd: newEv.timeEnd || '', name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags || [], memo: newEv.memo || '', attendance: {} }
+      const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart || '', timeEnd: newEv.timeEnd || '', name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags || [], memo: newEv.memo || '', fee: newEv.fee === '' ? null : Number(newEv.fee), paid: {}, attendance: {} }
       const nd = { ...data, globalTags: mergedGlobalTags, events: [...data.events, ev].sort((a, b) => b.date.localeCompare(a.date)) }
       update(nd, mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, before: '（未作成）', after: 'イベント追加' }))
       setExpandedEv(ev.id)
     }
-    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '', fee: '' })
     setTagInput(''); setShowAddEv(false); setEditingEvId(null)
   }
 
   const startEditEvent = (ev) => {
-    setNewEv({ date: ev.date, timeStart: ev.timeStart || '', timeEnd: ev.timeEnd || '', name: ev.name, type: ev.type, color: ev.color, tags: ev.tags || [], memo: ev.memo || '' })
+    setNewEv({ date: ev.date, timeStart: ev.timeStart || '', timeEnd: ev.timeEnd || '', name: ev.name, type: ev.type, color: ev.color, tags: ev.tags || [], memo: ev.memo || '', fee: ev.fee == null ? '' : String(ev.fee) })
     setEditingEvId(ev.id); setShowAddEv(true); setExpandedEv(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -499,6 +500,15 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>メモ（メンバーに表示）</p>
                   <textarea placeholder="例：衣装持参でお願いします！集合13:45" value={newEv.memo || ''} onChange={e => setNewEv({ ...newEv, memo: e.target.value })} style={{ minHeight: 60 }} />
                 </div>
+                {/* 会費: 空欄なら「会費なし」。集金の有無をイベント単位で切り替えられる */}
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>会費（任意・空欄なら会費なし）</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="number" inputMode="numeric" min="0" step="100" placeholder="例：1000"
+                      value={newEv.fee ?? ''} onChange={e => setNewEv({ ...newEv, fee: e.target.value })} style={{ flex: 1 }} />
+                    <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', flexShrink: 0 }}>円</span>
+                  </div>
+                </div>
                 {/* Color */}
                 <div style={{ marginBottom: 14 }}>
                   <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>ラベルカラー</p>
@@ -538,7 +548,10 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.name}</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd ? `〜${ev.timeEnd}` : '〜'}` : ''} · {ev.type}</p>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>
+                            {ev.date}{ev.timeStart ? ` ${ev.timeStart}${ev.timeEnd ? `〜${ev.timeEnd}` : '〜'}` : ''} · {ev.type}
+                            {ev.fee != null && ev.fee > 0 && <span style={{ marginLeft: 6, color: ACD, fontWeight: 600 }}>💰{ev.fee.toLocaleString()}円</span>}
+                          </p>
                           {(() => {
                             const isOver = ev.date <= todayStr()
                             const pc = data.members.filter(m => { const a = ev.attendance?.[m]?.actual; return a === 'present' || a === 'late' }).length
@@ -566,6 +579,61 @@ function Dashboard({ user, scriptUrl, onSignOut, onChangeScript, onUpdateUser })
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '12px 14px' }}>
+                      {/* 集金状況: 会費が設定されたイベントだけ表示する。
+                          出欠より揉めやすい部分なので、誰が払ったかを記録できるようにしておく。 */}
+                      {ev.fee != null && ev.fee > 0 && (() => {
+                        const paid = ev.paid || {}
+                        // 集金対象は「参加予定 or 参加した人」。欠席者から集めることは通常ないため
+                        const targets = data.members.filter(m => {
+                          const a = ev.attendance?.[m] || {}
+                          return a.plan === 'attending' || a.plan === 'late' || a.actual === 'present' || a.actual === 'late'
+                        })
+                        const paidCount = targets.filter(m => paid[m]).length
+                        const total = paidCount * ev.fee
+                        const expected = targets.length * ev.fee
+                        const togglePaid = (m) => {
+                          const next = { ...paid }
+                          if (next[m]) delete next[m]; else next[m] = true
+                          update(
+                            { ...data, events: data.events.map(e => e.id !== ev.id ? e : { ...e, paid: next }) },
+                            mkLog({ by: adminLabel, type: 'admin', eventDate: ev.date, eventName: ev.name, member: m, before: paid[m] ? '支払済' : '未払い', after: paid[m] ? '未払い' : '支払済' })
+                          )
+                        }
+                        return (
+                          <div style={{ background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)', padding: 12, marginBottom: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <i className="ti ti-coin" style={{ fontSize: 15, color: AC }}></i>会費 {ev.fee.toLocaleString()}円
+                              </span>
+                              <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                {paidCount}/{targets.length}人 · {total.toLocaleString()}／{expected.toLocaleString()}円
+                              </span>
+                            </div>
+                            {targets.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>参加予定の人がまだいません</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {targets.map(m => {
+                                  const done = !!paid[m]
+                                  return (
+                                    <button key={m} onClick={() => togglePaid(m)}
+                                      aria-pressed={done}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                        border: `1px solid ${done ? 'var(--color-border-success)' : 'var(--color-border-tertiary)'}`,
+                                        background: done ? 'var(--color-background-success)' : 'transparent',
+                                        color: done ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
+                                      {done && <i className="ti ti-check" style={{ fontSize: 12 }}></i>}{m}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '8px 0 0' }}>
+                              名前をタップで「支払済」に切り替わります（参加予定の人のみ表示）
+                            </p>
+                          </div>
+                        )
+                      })()}
                       {data.members.length === 0 ? <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', fontSize: 13 }}>メンバーを先に登録してください</p> : (
                         <>
                           {/* Name search inside event */}

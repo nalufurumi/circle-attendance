@@ -54,7 +54,7 @@ function seedData() {
       { id: 'd2', date: D(3),  timeStart: '18:00', timeEnd: '20:00', name: '2年生ミーティング', type: 'MTG', color: 'blue', tags: ['2年生'], memo: '', attendance: {
         さくら: { plan: 'attending', actual: null, reason: null }, ゆい: { plan: 'attending', actual: null, reason: null }, のあ: { plan: 'attending', actual: null, reason: null },
       }},
-      { id: 'd3', date: D(-2), timeStart: '13:00', timeEnd: '16:00', name: '春の対外試合', type: '本番', color: 'red', tags: ['全体', '対外試合'], memo: '試合形式で通します。', attendance: {
+      { id: 'd3', date: D(-2), timeStart: '13:00', timeEnd: '16:00', name: '春の対外試合', type: '本番', color: 'red', tags: ['全体', '対外試合'], memo: '試合形式で通します。', fee: 1000, paid: { あやか: true, みお: true }, attendance: {
         あやか: { plan: 'attending', actual: 'present', reason: null }, みお: { plan: 'attending', actual: 'present', reason: null },
         さくら: { plan: 'attending', actual: 'late', reason: null }, ひなた: { plan: 'attending', actual: 'present', reason: null },
         ゆい: { plan: 'late', actual: 'late', reason: '電車遅延' }, りん: { plan: 'attending', actual: 'absent', reason: '体調不良' },
@@ -82,7 +82,7 @@ export default function DemoPage() {
   const [logs, setLogs] = useState([])
   const [showAddEv, setShowAddEv] = useState(false)
   const [editingEvId, setEditingEvId] = useState(null)
-  const [newEv, setNewEv] = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+  const [newEv, setNewEv] = useState({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '', fee: '' })
   const [tagInput, setTagInput] = useState('')
   const [newTagInput, setNewTagInput] = useState('')
   const [notice, setNotice] = useState(seedData().notice)
@@ -159,17 +159,17 @@ export default function DemoPage() {
       setData(d => ({
         ...d,
         globalTags: [...new Set([...(d.globalTags || []), ...newEv.tags])],
-        events: d.events.map(e => e.id !== editingEvId ? e : { ...e, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo }),
+        events: d.events.map(e => e.id !== editingEvId ? e : { ...e, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo, fee: newEv.fee === '' ? null : Number(newEv.fee) }),
       }))
       addLog({ by: '管理者', type: 'admin', eventName: newEv.name.trim(), member: '', before: 'イベント編集前', after: 'イベント編集' })
       setExpandedEv(editingEvId)
     } else {
-      const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo, attendance: {} }
+      const ev = { id: `e${Date.now()}`, date: newEv.date, timeStart: newEv.timeStart, timeEnd: newEv.timeEnd, name: newEv.name.trim(), type: newEv.type, color: newEv.color, tags: newEv.tags, memo: newEv.memo, fee: newEv.fee === '' ? null : Number(newEv.fee), paid: {}, attendance: {} }
       setData(d => ({ ...d, events: [...d.events, ev], globalTags: [...new Set([...(d.globalTags || []), ...newEv.tags])] }))
       addLog({ by: '管理者', type: 'admin', eventName: ev.name, member: '', before: '（未作成）', after: 'イベント追加' })
       setExpandedEv(ev.id)
     }
-    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' })
+    setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '', fee: '' })
     setTagInput(''); setShowAddEv(false); setEditingEvId(null)
   }
 
@@ -329,7 +329,7 @@ export default function DemoPage() {
                           <div style={{ minWidth: 0 }}>
                             <p style={{ fontWeight: 500, margin: 0 }}>{ev.name}</p>
                             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
+                          <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}{ev.fee != null && ev.fee > 0 && <span style={{ marginLeft: 6, color: ACD, fontWeight: 600 }}>💰{ev.fee.toLocaleString()}円</span>}</p>
                           {(() => {
                             const isOver = ev.date <= today
                             const pc = data.members.filter(m => { const a = ev.attendance[m]?.actual; return a==='present'||a==='late' }).length
@@ -446,7 +446,7 @@ export default function DemoPage() {
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <span style={{ fontWeight: 500 }}>イベント管理</span>
-                  <button onClick={() => { setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '' }); setShowAddEv(!showAddEv) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  <button onClick={() => { setEditingEvId(null); setNewEv({ date: todayStr(), timeStart: '', timeEnd: '', name: '', type: '練習', color: 'pink', tags: [], memo: '', fee: '' }); setShowAddEv(!showAddEv) }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 999, background: ACB, border: 'none', color: ACD, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
                     <i className="ti ti-plus" style={{ fontSize: 14 }}></i>追加
                   </button>
                 </div>
@@ -471,6 +471,13 @@ export default function DemoPage() {
                       </div>
                     </div>
                     <div style={{ marginBottom: 8 }}><p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>メモ（メンバーに表示）</p><textarea placeholder="例：衣装持参でお願いします" value={newEv.memo} onChange={e => setNewEv({ ...newEv, memo: e.target.value })} style={{ minHeight: 50 }} /></div>
+                    <div style={{ marginBottom: 8 }}>
+                      <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>会費（任意・空欄なら会費なし）</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input type="number" inputMode="numeric" min="0" step="100" placeholder="例：1000" value={newEv.fee ?? ''} onChange={e => setNewEv({ ...newEv, fee: e.target.value })} style={{ flex: 1 }} />
+                        <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', flexShrink: 0 }}>円</span>
+                      </div>
+                    </div>
                     <div style={{ marginBottom: 12 }}>
                       <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>ラベルカラー</p>
                       <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>{COLORS.map(c => <button key={c.id} onClick={() => setNewEv({ ...newEv, color: c.id })} style={{ width: 24, height: 24, borderRadius: '50%', background: c.hex, border: 'none', cursor: 'pointer', outline: newEv.color === c.id ? `3px solid ${c.hex}` : 'none', outlineOffset: -5 }} />)}</div>
@@ -502,7 +509,7 @@ export default function DemoPage() {
                       <div style={{ width: 4, height: 36, borderRadius: 2, background: getColor(ev.color), flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontWeight: 500, margin: 0 }}>{ev.name}</p>
-                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}</p>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{ev.date}{ev.timeStart ? ` ${ev.timeStart}〜${ev.timeEnd || ''}` : ''} · {ev.type}{ev.fee != null && ev.fee > 0 && <span style={{ marginLeft: 6, color: ACD, fontWeight: 600 }}>💰{ev.fee.toLocaleString()}円</span>}</p>
                         {ev.tags?.length > 0 && <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 3 }}>{ev.tags.map(t => <span key={t} style={{ fontSize: 10, padding: '1px 6px', background: ACB, color: ACD, borderRadius: 999 }}>#{t}</span>)}</div>}
                       </div>
                     </div>
@@ -510,6 +517,57 @@ export default function DemoPage() {
                   </div>
                   {isOpen && (
                     <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '12px 14px' }}>
+                      {/* 集金状況(デモ) — AdminPageと同じ挙動を体験できるようにする */}
+                      {ev.fee != null && ev.fee > 0 && (() => {
+                        const paid = ev.paid || {}
+                        const targets = data.members.filter(m => {
+                          const a = ev.attendance?.[m] || {}
+                          return a.plan === 'attending' || a.plan === 'late' || a.actual === 'present' || a.actual === 'late'
+                        })
+                        const paidCount = targets.filter(m => paid[m]).length
+                        const togglePaid = (m) => setData(d => ({
+                          ...d,
+                          events: d.events.map(e => {
+                            if (e.id !== ev.id) return e
+                            const next = { ...(e.paid || {}) }
+                            if (next[m]) delete next[m]; else next[m] = true
+                            return { ...e, paid: next }
+                          }),
+                        }))
+                        return (
+                          <div style={{ background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-md)', padding: 12, marginBottom: 12 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <i className="ti ti-coin" style={{ fontSize: 15, color: AC }}></i>会費 {ev.fee.toLocaleString()}円
+                              </span>
+                              <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                {paidCount}/{targets.length}人 · {(paidCount * ev.fee).toLocaleString()}／{(targets.length * ev.fee).toLocaleString()}円
+                              </span>
+                            </div>
+                            {targets.length === 0 ? (
+                              <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>参加予定の人がまだいません</p>
+                            ) : (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {targets.map(m => {
+                                  const done = !!paid[m]
+                                  return (
+                                    <button key={m} onClick={() => togglePaid(m)} aria-pressed={done}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                        border: `1px solid ${done ? 'var(--color-border-success)' : 'var(--color-border-tertiary)'}`,
+                                        background: done ? 'var(--color-background-success)' : 'transparent',
+                                        color: done ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
+                                      {done && <i className="ti ti-check" style={{ fontSize: 12 }}></i>}{m}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '8px 0 0' }}>
+                              名前をタップで「支払済」に切り替わります（参加予定の人のみ表示）
+                            </p>
+                          </div>
+                        )
+                      })()}
                       <div style={{ position: 'relative', marginBottom: 10 }}>
                         <i className="ti ti-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-tertiary)', fontSize: 13, pointerEvents: 'none' }}></i>
                         <input type="text" placeholder="メンバーを絞り込む..." value={evSearch} onChange={e => setEvSearch(e.target.value)} style={{ paddingLeft: 30, fontSize: 13, padding: '6px 10px 6px 30px' }} />

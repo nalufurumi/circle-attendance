@@ -42,10 +42,11 @@ function generateRepeat(weekdays, untilYMD) {
   return out
 }
 
-export default function CandidateDatePicker({ onChange, AC, ACB, ACD }) {
+export default function CandidateDatePicker({ onChange, initialTimes, AC, ACB, ACD }) {
   const [dates, setDates] = useState([])           // 選択中の日付(YYYY-MM-DD)
-  const [bulkStart, setBulkStart] = useState('')   // 全体の開始時刻
-  const [bulkEnd, setBulkEnd] = useState('')       // 全体の終了時刻
+  // 複製時は前回の時刻を初期値にする(毎回打ち直さなくて済むように)
+  const [bulkStart, setBulkStart] = useState(initialTimes?.start || '')
+  const [bulkEnd, setBulkEnd] = useState(initialTimes?.end || '')
   const [overrides, setOverrides] = useState({})   // { [date]: { start, end } } 個別指定した日だけ入る
   const [editing, setEditing] = useState(null)     // 時間を編集中の日付
   const [showRepeat, setShowRepeat] = useState(false)  // 繰り返し追加パネルの開閉

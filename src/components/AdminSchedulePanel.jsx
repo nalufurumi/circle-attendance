@@ -14,6 +14,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
   // カレンダー側の入力状態はCandidateDatePickerが持つ。ここには組み上がった候補リストだけ受け取る
   const [calendarCandidates, setCalendarCandidates] = useState([]) // [{date,timeStart,timeEnd}]
   const [pickerKey, setPickerKey] = useState(0)                    // key更新で中身をまるごとリセットする
+  const [dupTimes, setDupTimes] = useState({ start: '', end: '' })  // 複製時に引き継ぐ初期時刻
   const [candidates, setCandidates] = useState([{ date: '', timeStart: '', timeEnd: '' }]) // 手入力モード用
   const [requireAll, setRequireAll] = useState(false)
   const [expandedPoll, setExpandedPoll] = useState(null)
@@ -32,7 +33,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
 
   // フォーム入力を全部クリアする(作成後・キャンセル時に使う)
   const resetForm = () => {
-    setTitle(''); setMemo(''); setCalendarCandidates([]); setPickerKey(k => k + 1)
+    setTitle(''); setMemo(''); setCalendarCandidates([]); setDupTimes({ start: '', end: '' }); setPickerKey(k => k + 1)
     setCandidates([{ date: '', timeStart: '', timeEnd: '' }])
     setRequireAll(false); setFormError('')
   }
@@ -70,6 +71,23 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
   const deletePoll = (pollId) => {
     if (!confirm('この日程調整を削除しますか？回答内容も失われます。')) return
     onUpdate({ ...data, schedulePolls: polls.filter(p => p.id !== pollId) })
+  }
+
+  // 前回と同じ設定で新しく作る。日付は過去のものなので引き継がず、
+  // 毎回打ち直すのが面倒な「タイトル・メモ・時間・回答必須」だけを引き継ぐ。
+  const duplicatePoll = (poll) => {
+    setTitle(poll.title)
+    setMemo(poll.memo || '')
+    setRequireAll(!!poll.requireAll)
+    // 前回の候補で一番よく使われていた時刻を初期値として引き継ぐ
+    const first = poll.candidates?.[0]
+    setDupTimes({ start: first?.timeStart || '', end: first?.timeEnd || '' })
+    setInputMode('calendar')
+    setCalendarCandidates([])
+    setPickerKey(k => k + 1)  // ピッカーを作り直して引き継いだ時刻を初期値に反映
+    setFormError('')
+    setShowForm(true)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const openConfirmPick = (poll, candidateId) => {
@@ -142,7 +160,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
           </div>
 
           {inputMode === 'calendar' ? (
-            <CandidateDatePicker key={pickerKey} onChange={setCalendarCandidates} AC={AC} ACB={ACB} ACD={ACD} />
+            <CandidateDatePicker key={pickerKey} initialTimes={dupTimes} onChange={setCalendarCandidates} AC={AC} ACB={ACB} ACD={ACD} />
           ) : (
             <>
               {candidates.map((c, i) => (
@@ -242,9 +260,14 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
                         </div>
                       )
                     })}
-                    <button onClick={() => deletePoll(poll.id)} style={{ fontSize: 12, color: 'var(--color-text-danger)', border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 0' }}>
-                      この日程調整を削除
-                    </button>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <button onClick={() => duplicatePoll(poll)} style={{ fontSize: 12, color: AC, border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ti ti-copy" style={{ fontSize: 14 }}></i>同じ設定で新しく作る
+                      </button>
+                      <button onClick={() => deletePoll(poll.id)} style={{ fontSize: 12, color: 'var(--color-text-danger)', border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px 0' }}>
+                        この日程調整を削除
+                      </button>
+                    </div>
                   </div>
                 )}
               </Card>
@@ -260,12 +283,16 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
             const cand = poll.candidates.find(c => c.id === poll.resultCandidateId)
             return (
               <Card key={poll.id} style={{ padding: '10px 14px', marginBottom: 6, opacity: 0.75 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <p style={{ fontSize: 13, margin: 0 }}>{poll.title}</p>
                     <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: 0 }}>{cand ? fmtDate(cand.date) : ''} に決定 → イベント化済み</p>
                   </div>
-                  <i className="ti ti-check" style={{ fontSize: 16, color: 'var(--color-text-success)' }}></i>
+                  <button onClick={() => duplicatePoll(poll)} title="同じ設定で新しく作る" aria-label={`${poll.title} と同じ設定で新しく作る`}
+                    style={{ border: 'none', background: 'transparent', color: AC, cursor: 'pointer', padding: 4, flexShrink: 0 }}>
+                    <i className="ti ti-copy" style={{ fontSize: 16 }}></i>
+                  </button>
+                  <i className="ti ti-check" style={{ fontSize: 16, color: 'var(--color-text-success)', flexShrink: 0 }}></i>
                 </div>
               </Card>
             )

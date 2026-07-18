@@ -119,6 +119,11 @@ export default function MemberSchedulePanel({ polls, selMember, onRespond }) {
               {isDirty && <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text-warning)', background: 'var(--color-background-warning)', padding: '2px 8px', borderRadius: 999, flexShrink: 0 }}>未保存</span>}
             </div>
             {poll.requireAll && <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>※ 全候補への回答をお願いします</p>}
+            {poll.memo?.trim() && (
+              <div style={{ display: 'flex', gap: 6, background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-sm)', padding: '6px 10px', margin: '8px 0', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                <span style={{ flexShrink: 0 }}>📝</span><span>{poll.memo}</span>
+              </div>
+            )}
             {poll.candidates.map(cand => {
               const key = `${poll.id}_${cand.id}`
               const val = getVal(poll, cand.id)

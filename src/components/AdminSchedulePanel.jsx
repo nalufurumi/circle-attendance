@@ -9,6 +9,7 @@ import { POLL_STATUS, tallyPollCandidate, pollResponsesToAttendance } from '../l
 export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, AC, ACB, ACD, onEventCreated }) {
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
+  const [memo, setMemo] = useState('')                   // メンバーに伝えたい補足(任意)
   const [inputMode, setInputMode] = useState('calendar') // 'calendar' | 'manual'
   // カレンダー側の入力状態はCandidateDatePickerが持つ。ここには組み上がった候補リストだけ受け取る
   const [calendarCandidates, setCalendarCandidates] = useState([]) // [{date,timeStart,timeEnd}]
@@ -31,7 +32,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
 
   // フォーム入力を全部クリアする(作成後・キャンセル時に使う)
   const resetForm = () => {
-    setTitle(''); setCalendarCandidates([]); setPickerKey(k => k + 1)
+    setTitle(''); setMemo(''); setCalendarCandidates([]); setPickerKey(k => k + 1)
     setCandidates([{ date: '', timeStart: '', timeEnd: '' }])
     setRequireAll(false); setFormError('')
   }
@@ -53,6 +54,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
     const poll = {
       id: `sp${Date.now()}`,
       title: title.trim(),
+      memo: memo.trim(),
       candidates: validCandidates.map((c, i) => ({ id: `c${Date.now()}_${i}`, date: c.date, timeStart: c.timeStart, timeEnd: c.timeEnd })),
       requireAll,
       status: 'open',
@@ -84,7 +86,7 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
     const newEvent = {
       id: `e${Date.now()}`,
       date: cand.date, timeStart: cand.timeStart || '', timeEnd: cand.timeEnd || '',
-      name: eventName.trim() || poll.title, type: eventType, color: 'pink', tags: [], memo: '',
+      name: eventName.trim() || poll.title, type: eventType, color: 'pink', tags: [], memo: poll.memo || '',
       attendance,
     }
     const updatedPolls = polls.map(p => p.id === poll.id ? { ...p, status: 'closed', resultCandidateId: candidateId, eventId: newEvent.id } : p)
@@ -117,6 +119,11 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
           <div style={{ marginBottom: 10 }}>
             <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>タイトル</p>
             <input type="text" placeholder="例：7月の練習日程を決めよう" value={title} onChange={e => setTitle(e.target.value)} />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>メモ（任意・メンバーの回答画面に表示されます）</p>
+            <textarea placeholder="例：2泊3日の合宿です。バイトがある人は早めに教えてください" value={memo} onChange={e => setMemo(e.target.value)}
+              style={{ width: '100%', minHeight: 56, boxSizing: 'border-box', fontSize: 13, resize: 'vertical' }} />
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>候補日</p>
 
@@ -198,6 +205,11 @@ export default function AdminSchedulePanel({ data, onUpdate, adminLabel, mkLog, 
                 </div>
                 {isOpen && (
                   <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', padding: '12px 14px' }}>
+                    {poll.memo?.trim() && (
+                      <div style={{ display: 'flex', gap: 6, background: 'var(--color-background-secondary)', borderRadius: 'var(--border-radius-sm)', padding: '6px 10px', marginBottom: 10, fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                        <span style={{ flexShrink: 0 }}>📝</span><span>{poll.memo}</span>
+                      </div>
+                    )}
                     {poll.candidates.map(cand => {
                       const tally = tallyPollCandidate(poll, cand.id)
                       return (
